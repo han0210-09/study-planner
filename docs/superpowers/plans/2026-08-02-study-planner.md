@@ -688,7 +688,9 @@ git commit -m "feat: store 모듈 - 스키마 검증, 블록 겹침 처리, loca
 
 **Interfaces:**
 - Consumes: `SP.store` (`DEFAULT_SUBJECTS`, `newId`)
-- Produces: `SP.subjects` — `FALLBACK_COLOR:string`, `find(subjects, id):object|null`, `colorOf(subjects, id):string`, `nameOf(subjects, id):string`, `countReferences(state, id):number`, `addSubject(state, name, color):object`, `updateSubject(state, id, patch):boolean`, `removeSubject(state, id):number`
+- Produces: `SP.subjects` — `FALLBACK_COLOR:string`, `find(subjects, id):object|null`, `colorOf(subjects, id):string`, `nameOf(subjects, id):string`, `countReferences(state, id):number`, `addSubject(state, name, color):object`, `updateSubject(state, id, patch):boolean`, `removeSubject(state, id):number`, `buildSelect(subjects, selectedId):HTMLSelectElement`
+
+`buildSelect`는 브라우저 전용이라 자동 테스트 대상이 아니다. Task 8·9·10이 모두 이 함수를 쓴다 — 과목 선택 드롭다운을 각자 만들지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트 작성 — `test/subjects.test.js`**
 
@@ -835,7 +837,26 @@ Expected: FAIL — `Cannot find module '../src/subjects.js'`
     return affected;
   }
 
-  const api = { FALLBACK_COLOR, find, colorOf, nameOf, countReferences, addSubject, updateSubject, removeSubject };
+  // 과목 선택 드롭다운. 브라우저에서만 쓰이며 Task 8·9·10이 공유한다.
+  function buildSelect(list, selectedId) {
+    const select = document.createElement("select");
+    select.className = "subject-select";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "과목 없음";
+    none.selected = !selectedId;
+    select.appendChild(none);
+    for (const s of list) {
+      const option = document.createElement("option");
+      option.value = s.id;
+      option.textContent = s.name;
+      option.selected = s.id === selectedId;
+      select.appendChild(option);
+    }
+    return select;
+  }
+
+  const api = { FALLBACK_COLOR, find, colorOf, nameOf, countReferences, addSubject, updateSubject, removeSubject, buildSelect };
 
   root.SP = root.SP || {};
   root.SP.subjects = api;
@@ -2228,20 +2249,12 @@ git commit -m "feat: 월간 달력 - 일정 배지, 공부량 막대, 길게 눌
   const subjectsApi = SP.subjects;
   const ui = SP.ui;
 
-  function subjectSelect(subjects, selectedId) {
-    return ui.el("select", { class: "todo-subject-select" },
-      [ui.el("option", { value: "", text: "과목 없음", selected: !selectedId })].concat(
-        subjects.map((s) => ui.el("option", { value: s.id, text: s.name, selected: s.id === selectedId }))
-      )
-    );
-  }
-
   function openEditor(dateKey, todoId, onDone) {
     const state = SP.app.state();
     const day = SP.app.store().getDay(dateKey);
     const existing = todoId ? day.todos.find((t) => t.id === todoId) : null;
 
-    const select = subjectSelect(state.settings.subjects, existing ? existing.subjectId : null);
+    const select = subjectsApi.buildSelect(state.settings.subjects, existing ? existing.subjectId : null);
     const input = ui.el("input", { type: "text", value: existing ? existing.text : "", placeholder: "할 일을 입력하세요", maxlength: "80" });
 
     const save = () => {
@@ -2522,7 +2535,7 @@ git commit -m "feat: 월간 달력 - 일정 배지, 공부량 막대, 길게 눌
 .icon-btn.tiny { min-width: 28px; min-height: 20px; font-size: 10px; padding: 0; }
 .icon-btn.tiny[disabled] { opacity: .25; }
 .todo-check { width: 24px; height: 24px; }
-.todo-subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
+.subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
 
 .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
 .totals-label { color: var(--muted); font-size: 13px; }
@@ -2648,12 +2661,7 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
         ui.el("button", { class: "btn stepper-btn", text: "+5분", onclick: () => nudge(which, dt.SLOT) }),
       ]);
 
-    const select = ui.el("select", { class: "todo-subject-select" },
-      [ui.el("option", { value: "", text: "과목 없음", selected: !block.subjectId })].concat(
-        state.settings.subjects.map((s) =>
-          ui.el("option", { value: s.id, text: s.name, selected: s.id === block.subjectId }))
-      )
-    );
+    const select = subjectsApi.buildSelect(state.settings.subjects, block.subjectId);
     const textInput = ui.el("input", { type: "text", value: block.text, placeholder: "무엇을 공부하나요?", maxlength: "40" });
 
     ui.openSheet({
@@ -3048,7 +3056,7 @@ Task 7과 8에 남아 있는 "준비 중" 자리를 전부 실제 동작으로 �
     const existing = eventId ? state.events.find((e) => e.id === eventId) : null;
 
     const title = ui.el("input", { type: "text", value: existing ? existing.title : "", placeholder: "예: 국어 수행평가", maxlength: "40" });
-    const typeSelect = ui.el("select", { class: "todo-subject-select" },
+    const typeSelect = ui.el("select", { class: "subject-select" },
       eventsApi.EVENT_TYPES.map((t) =>
         ui.el("option", { value: t.id, text: t.label, selected: existing ? existing.type === t.id : t.id === "assessment" }))
     );
