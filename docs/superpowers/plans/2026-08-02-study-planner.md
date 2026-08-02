@@ -337,6 +337,17 @@ test("limitRange: 이웃 블록에 닿으면 거기서 멈춘다", () => {
   assert.deepEqual(store.limitRange(blocks, 310, 350, "b300"), { start: 310, end: 350 });
 });
 
+test("limitRange: 멀리 끌어도 구간이 블록을 건너뛰지 않는다", () => {
+  const blocks = [B(300, 360), B(600, 660)];
+  // 빈 슬롯 500에서 눌러 화면 끝까지 아래로 끌면, 600에서 시작하는 블록 앞에서 멈춰야 한다.
+  assert.deepEqual(store.limitRange(blocks, 500, 2000), { start: 500, end: 600 });
+  // 위로 끌 때도 마찬가지. 500에서 05:00 방향으로 끌면 360에서 멈춘다.
+  assert.deepEqual(store.limitRange(blocks, 500, 0), { start: 360, end: 500 });
+  // 결과 구간은 언제나 anchor를 품는다.
+  const r = store.limitRange(blocks, 900, 2000);
+  assert.ok(r.start <= 900 && 900 <= r.end);
+});
+
 test("sumPlanned / sumDone", () => {
   const blocks = [B(300, 360), B(600, 720, { done: true }), B(900, 960, { done: true })];
   assert.equal(store.sumPlanned(blocks), 60 + 120 + 60);
@@ -523,15 +534,21 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
     return null;
   }
 
-  function limitRange(blocks, start, end, ignoreId) {
-    let lo = dt.clampToDay(Math.min(start, end));
-    let hi = dt.clampToDay(Math.max(start, end));
+  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치.
+  // 결과 구간은 반드시 anchor를 품어야 하므로, 장애물을 anchor의 반대쪽에서 잘라낸다.
+  // (구간의 중점으로 방향을 판정하면 드래그가 기존 블록을 건너뛴다.)
+  function limitRange(blocks, anchor, cursor, ignoreId) {
+    const a = dt.clampToDay(anchor);
+    const c = dt.clampToDay(cursor);
+    let lo = Math.min(a, c);
+    let hi = Math.max(a, c);
     for (const b of blocks) {
       if (ignoreId && b.id === ignoreId) continue;
-      if (b.end <= lo) continue;
-      if (b.start >= hi) continue;
-      if (b.end <= (lo + hi) / 2) lo = Math.max(lo, b.end);
-      else hi = Math.min(hi, b.start);
+      if (b.end <= lo || b.start >= hi) continue;
+      if (b.end <= a) lo = Math.max(lo, b.end);          // 블록이 anchor 위쪽
+      else if (b.start >= a) hi = Math.min(hi, b.start); // 블록이 anchor 아래쪽
+      else if (c >= a) lo = Math.max(lo, b.end);         // anchor가 블록 안 + 아래로 끄는 중
+      else hi = Math.min(hi, b.start);                   // anchor가 블록 안 + 위로 끄는 중
     }
     if (hi < lo) hi = lo;
     return { start: lo, end: hi };
