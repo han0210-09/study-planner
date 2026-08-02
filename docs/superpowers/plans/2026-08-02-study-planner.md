@@ -343,9 +343,30 @@ test("limitRange: 멀리 끌어도 구간이 블록을 건너뛰지 않는다", 
   assert.deepEqual(store.limitRange(blocks, 500, 2000), { start: 500, end: 600 });
   // 위로 끌 때도 마찬가지. 500에서 05:00 방향으로 끌면 360에서 멈춘다.
   assert.deepEqual(store.limitRange(blocks, 500, 0), { start: 360, end: 500 });
-  // 결과 구간은 언제나 anchor를 품는다.
-  const r = store.limitRange(blocks, 900, 2000);
-  assert.ok(r.start <= 900 && 900 <= r.end);
+  // 아래쪽에 장애물이 없으면 하루 끝까지 뻗는다.
+  assert.deepEqual(store.limitRange(blocks, 900, 2000), { start: 900, end: 1560 });
+});
+
+test("limitRange: anchor가 빈 구간이면 결과가 anchor를 품는다", () => {
+  const blocks = [B(300, 360), B(600, 660), B(900, 1000)];
+  for (const anchor of [400, 500, 700, 800, 1200]) {
+    for (const cursor of [0, 350, 650, 1100, 2000]) {
+      const r = store.limitRange(blocks, anchor, cursor);
+      assert.ok(
+        r.start <= anchor && anchor <= r.end,
+        `anchor ${anchor}, cursor ${cursor} → ${JSON.stringify(r)}`
+      );
+      assert.ok(r.start >= 300 && r.end <= 1560);
+      assert.equal(store.findOverlap(blocks, { id: null, start: r.start, end: r.end }), null);
+    }
+  }
+});
+
+test("limitRange: anchor가 블록 안이면 드래그 방향으로 밀어낸다", () => {
+  const blocks = [B(300, 400)];
+  // 계약 2번 — 이 경로는 UI에서 도달하지 않지만 동작을 고정해 둔다.
+  assert.deepEqual(store.limitRange(blocks, 350, 500), { start: 400, end: 500 });
+  assert.deepEqual(store.limitRange(blocks, 350, 100), { start: 300, end: 300 });
 });
 
 test("sumPlanned / sumDone", () => {
@@ -534,9 +555,18 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
     return null;
   }
 
-  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치.
-  // 결과 구간은 반드시 anchor를 품어야 하므로, 장애물을 anchor의 반대쪽에서 잘라낸다.
-  // (구간의 중점으로 방향을 판정하면 드래그가 기존 블록을 건너뛴다.)
+  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치. 둘 다 클램프해서 쓴다.
+  //
+  // 계약:
+  //   1. anchor가 빈 구간에 있으면 (호출부가 항상 보장하는 조건) 결과는 anchor를
+  //      품고, 드래그 방향으로 가장 가까운 블록 경계에서 멈춘다.
+  //   2. anchor가 블록 안에 있으면 (UI에서는 도달 불가한 방어적 경로) 결과를
+  //      그 블록 밖으로, 드래그 방향 쪽으로 밀어낸다. 이때는 anchor를 품지 않는다.
+  //   3. 남는 자리가 없으면 빈 구간(start === end)을 돌려준다. 호출부가 최소 5분
+  //      검사로 걸러낸다.
+  //
+  // 방향을 구간의 중점으로 판정하면 안 된다 — 멀리 드래그할 때 선택이 기존
+  // 블록을 통째로 건너뛴다.
   function limitRange(blocks, anchor, cursor, ignoreId) {
     const a = dt.clampToDay(anchor);
     const c = dt.clampToDay(cursor);
