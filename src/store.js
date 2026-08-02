@@ -57,9 +57,18 @@
     return null;
   }
 
-  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치.
-  // 결과 구간은 반드시 anchor를 품어야 하므로, 장애물을 anchor의 반대쪽에서 잘라낸다.
-  // (구간의 중점으로 방향을 판정하면 드래그가 기존 블록을 건너뛴다.)
+  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치. 둘 다 클램프해서 쓴다.
+  //
+  // 계약:
+  //   1. anchor가 빈 구간에 있으면 (호출부가 항상 보장하는 조건) 결과는 anchor를
+  //      품고, 드래그 방향으로 가장 가까운 블록 경계에서 멈춘다.
+  //   2. anchor가 블록 안에 있으면 (UI에서는 도달 불가한 방어적 경로) 결과를
+  //      그 블록 밖으로, 드래그 방향 쪽으로 밀어낸다. 이때는 anchor를 품지 않는다.
+  //   3. 남는 자리가 없으면 빈 구간(start === end)을 돌려준다. 호출부가 최소 5분
+  //      검사로 걸러낸다.
+  //
+  // 방향을 구간의 중점으로 판정하면 안 된다 — 멀리 드래그할 때 선택이 기존
+  // 블록을 통째로 건너뛴다.
   function limitRange(blocks, anchor, cursor, ignoreId) {
     const a = dt.clampToDay(anchor);
     const c = dt.clampToDay(cursor);
