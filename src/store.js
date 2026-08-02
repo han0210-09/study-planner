@@ -57,15 +57,21 @@
     return null;
   }
 
-  function limitRange(blocks, start, end, ignoreId) {
-    let lo = dt.clampToDay(Math.min(start, end));
-    let hi = dt.clampToDay(Math.max(start, end));
+  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치.
+  // 결과 구간은 반드시 anchor를 품어야 하므로, 장애물을 anchor의 반대쪽에서 잘라낸다.
+  // (구간의 중점으로 방향을 판정하면 드래그가 기존 블록을 건너뛴다.)
+  function limitRange(blocks, anchor, cursor, ignoreId) {
+    const a = dt.clampToDay(anchor);
+    const c = dt.clampToDay(cursor);
+    let lo = Math.min(a, c);
+    let hi = Math.max(a, c);
     for (const b of blocks) {
       if (ignoreId && b.id === ignoreId) continue;
-      if (b.end <= lo) continue;
-      if (b.start >= hi) continue;
-      if (b.end <= (lo + hi) / 2) lo = Math.max(lo, b.end);
-      else hi = Math.min(hi, b.start);
+      if (b.end <= lo || b.start >= hi) continue;
+      if (b.end <= a) lo = Math.max(lo, b.end);          // 블록이 anchor 위쪽
+      else if (b.start >= a) hi = Math.min(hi, b.start); // 블록이 anchor 아래쪽
+      else if (c >= a) lo = Math.max(lo, b.end);         // anchor가 블록 안 + 아래로 끄는 중
+      else hi = Math.min(hi, b.start);                   // anchor가 블록 안 + 위로 끄는 중
     }
     if (hi < lo) hi = lo;
     return { start: lo, end: hi };

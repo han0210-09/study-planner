@@ -55,6 +55,17 @@ test("limitRange: 이웃 블록에 닿으면 거기서 멈춘다", () => {
   assert.deepEqual(store.limitRange(blocks, 310, 350, "b300"), { start: 310, end: 350 });
 });
 
+test("limitRange: 멀리 끌어도 구간이 블록을 건너뛰지 않는다", () => {
+  const blocks = [B(300, 360), B(600, 660)];
+  // 빈 슬롯 500에서 눌러 화면 끝까지 아래로 끌면, 600에서 시작하는 블록 앞에서 멈춰야 한다.
+  assert.deepEqual(store.limitRange(blocks, 500, 2000), { start: 500, end: 600 });
+  // 위로 끌 때도 마찬가지. 500에서 05:00 방향으로 끌면 360에서 멈춘다.
+  assert.deepEqual(store.limitRange(blocks, 500, 0), { start: 360, end: 500 });
+  // 결과 구간은 언제나 anchor를 품는다.
+  const r = store.limitRange(blocks, 900, 2000);
+  assert.ok(r.start <= 900 && 900 <= r.end);
+});
+
 test("sumPlanned / sumDone", () => {
   const blocks = [B(300, 360), B(600, 720, { done: true }), B(900, 960, { done: true })];
   assert.equal(store.sumPlanned(blocks), 60 + 120 + 60);
