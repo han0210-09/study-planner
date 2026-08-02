@@ -1,0 +1,11 @@
+{
+  "name": "study-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "모바일 스터디 플래너",
+  "scripts": {
+    "test": "node --test test/",
+    "build": "node build.js",
+    "serve": "node serve.js"
+  }
+}
