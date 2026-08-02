@@ -19,7 +19,7 @@
 - 일정 유형 id는 `assessment` / `exam` / `homework` / `etc`.
 - 요일 인덱스는 0 = 일요일 ~ 6 = 토요일. 평일 = 1~5, 주말 = 0과 6.
 - 블록끼리 겹칠 수 없다. 최소 블록 길이 5분.
-- 테스트 실행 명령은 항상 `node --test test/`.
+- 테스트 실행 명령은 항상 `node --test` (인자 없음). Node 24는 `node --test test/`처럼 디렉터리를 인자로 주면 그것을 테스트 폴더가 아니라 **모듈 진입점**으로 해석해 `MODULE_NOT_FOUND`로 죽는다. 인자 없이 실행하면 `**/*.test.js`를 자동 탐색한다. 개별 파일을 돌릴 때만 `node --test test/<파일>.test.js` 형태로 경로를 준다.
 - UI 문구는 한국어.
 
 ---
@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: 없음
-- Produces: `SP.datetime` — `DAY_START:number`, `DAY_END:number`, `SLOT:number`, `DAY_BOUNDARY_HOUR:number`, `snapToSlot(m:number):number`, `clampToDay(m:number):number`, `minutesToLabel(m:number):string`, `formatDuration(m:number):string`, `dateKey(d:Date):string`, `parseDateKey(k:string):Date`, `addDays(k:string, n:number):string`, `daysBetween(a:string, b:string):number`, `weekdayOf(k:string):number`, `plannerDateKey(now:Date):string`, `formatDateKorean(k:string):string`
+- Produces: `SP.datetime` — `DAY_START:number`, `DAY_END:number`, `SLOT:number`, `DAY_BOUNDARY_HOUR:number`, `WEEKDAY_NAMES:string[]` (Task 7의 요일 헤더와 Task 10의 요일 칩이 쓴다), `snapToSlot(m:number):number`, `clampToDay(m:number):number`, `minutesToLabel(m:number):string`, `formatDuration(m:number):string`, `dateKey(d:Date):string`, `parseDateKey(k:string):Date`, `addDays(k:string, n:number):string`, `daysBetween(a:string, b:string):number`, `weekdayOf(k:string):number`, `plannerDateKey(now:Date):string`, `formatDateKorean(k:string):string`
 
 - [ ] **Step 1: `package.json` 생성**
 
@@ -44,7 +44,7 @@
   "private": true,
   "description": "모바일 스터디 플래너",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "build": "node build.js",
     "serve": "node serve.js"
   }
@@ -151,7 +151,7 @@ test("formatDateKorean", () => {
 
 - [ ] **Step 3: 테스트 실패 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '../src/datetime.js'`
 
 - [ ] **Step 4: `src/datetime.js` 구현**
@@ -248,7 +248,7 @@ Expected: FAIL — `Cannot find module '../src/datetime.js'`
 
 - [ ] **Step 5: 테스트 통과 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — 11 tests, 0 fail
 
 - [ ] **Step 6: 커밋**
@@ -458,7 +458,7 @@ test("createStore: 손상 데이터를 백업 키로 옮긴다", () => {
 
 - [ ] **Step 2: 테스트 실패 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `Cannot find module '../src/store.js'`
 
 - [ ] **Step 3: `src/store.js` 구현**
@@ -668,7 +668,7 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — datetime 11개 + store 14개 전부 통과
 
 - [ ] **Step 5: 커밋**
@@ -866,7 +866,7 @@ Expected: FAIL — `Cannot find module '../src/subjects.js'`
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — 전체 통과
 
 - [ ] **Step 5: 커밋**
@@ -1104,7 +1104,7 @@ Expected: FAIL — `Cannot find module '../src/events.js'`
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — 전체 통과
 
 - [ ] **Step 5: 커밋**
@@ -1529,7 +1529,7 @@ Expected: FAIL — `Cannot find module '../src/clipboard.js'`
 
 - [ ] **Step 4: 테스트 통과 확인**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — 4개 테스트 파일 전부 통과
 
 - [ ] **Step 5: 커밋**
@@ -3533,7 +3533,7 @@ node -e "const h=require('http'),f=require('fs');h.createServer((q,s)=>{s.writeH
 
 - [ ] **Step 4: 자동 테스트 최종 실행**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS — 5개 파일 전부 통과, 실패 0
 
 - [ ] **Step 5: `README.md` 작성**
@@ -3546,7 +3546,7 @@ Expected: PASS — 5개 파일 전부 통과, 실패 0
 ## 사용법
 
 - **개발 서버**: `node serve.js` → http://localhost:8080
-- **테스트**: `node --test test/`
+- **테스트**: `node --test`
 - **빌드**: `node build.js` → `dist/planner.html` (단일 HTML, 외부 요청 없음)
 
 ## 폰에서 쓰기
@@ -3586,7 +3586,7 @@ git commit -m "feat: 단일 HTML 빌드 스크립트와 배포 산출물"
 
 ## 완료 기준
 
-- `node --test test/` 전체 통과
+- `node --test` 전체 통과
 - `node build.js` 성공, `dist/planner.html`에 외부 참조 0건
 - Task 11 Step 3의 회귀 점검 항목 전부 통과
 - Artifact URL로 폰에서 접속해 계획 작성·체크가 동작
