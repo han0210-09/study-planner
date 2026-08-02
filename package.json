@@ -4,7 +4,7 @@
   "private": true,
   "description": "모바일 스터디 플래너",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "build": "node build.js",
     "serve": "node serve.js"
   }
