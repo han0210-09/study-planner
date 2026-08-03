@@ -1471,8 +1471,13 @@ test("paste: 클립보드가 없으면 아무 일도 하지 않는다", () => {
 test("describeClip", () => {
   const state = seedDay(baseState(), "2026-08-02");
   assert.equal(clipboard.describeClip(clipboard.copyDay(state, "2026-08-02")), "하루 계획 (할 일 1개, 블록 1개)");
+  // 2026-08-02(일)과 08-03(월)은 같은 주다. 주는 일요일에 시작하므로 둘 다 08-02 주에 든다.
   seedDay(state, "2026-08-03");
-  assert.equal(clipboard.describeClip(clipboard.copyWeek(state, "2026-08-03")), "일주일 계획 (1개 요일)");
+  assert.equal(clipboard.describeClip(clipboard.copyWeek(state, "2026-08-03")), "일주일 계획 (2개 요일)");
+  // 다음 주에 하루만 심으면 1개 요일이다.
+  const next = baseState();
+  seedDay(next, "2026-08-10");
+  assert.equal(clipboard.describeClip(clipboard.copyWeek(next, "2026-08-10")), "일주일 계획 (1개 요일)");
   assert.equal(clipboard.describeClip(null), "복사한 계획 없음");
 });
 ```
@@ -1489,13 +1494,15 @@ Expected: FAIL — `Cannot find module '../src/clipboard.js'`
   const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
   const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
 
+  // 복사본에 done: false를 명시한다. materialize()가 어차피 false로 덮지만,
+  // 페이로드만 봐도 "계획만 복사하고 완료 체크는 가져가지 않는다"가 드러나야 한다.
   function cloneTodos(todos) {
-    return (todos || []).map((t) => ({ subjectId: t.subjectId || null, text: t.text }));
+    return (todos || []).map((t) => ({ subjectId: t.subjectId || null, text: t.text, done: false }));
   }
 
   function cloneBlocks(blocks) {
     return (blocks || []).map((b) => ({
-      subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end,
+      subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
     }));
   }
 
