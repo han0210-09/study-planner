@@ -134,8 +134,8 @@
 
   const api = {
     render, refresh, currentKey: () => currentKey,
-    openMenu: () => ui.toast("준비 중"),
-    openEventEditor: () => ui.toast("준비 중"),
+    openMenu: (dateKey) => SP.sheets.dayMenu(dateKey, refresh),
+    openEventEditor: (dateKey, eventId) => SP.sheets.eventEditor(dateKey, eventId, refresh),
   };
   SP.day = api;
   if (typeof module !== "undefined") module.exports = api;

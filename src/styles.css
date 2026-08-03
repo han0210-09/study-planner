@@ -136,7 +136,9 @@ button { font: inherit; color: inherit; }
 .todo-list { list-style: none; margin: 0 0 10px; padding: 0; }
 .todo-row { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 32px; }
+/* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
+   행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
+.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 44px; }
 .todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
 .todo-order { display: flex; flex-direction: column; }
 /* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
@@ -216,3 +218,33 @@ button { font: inherit; color: inherit; }
 /* 짧은 블록은 트랙 위 ✓가 작아 누르기 어렵다. 시트에서도 완료를 바꿀 수 있어야 한다. */
 .editor-done { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 14px; cursor: pointer; }
 .editor-done input { width: 24px; height: 24px; }
+
+/* ---------- 시트 내부 ---------- */
+.sheet-sub { margin: 16px 0 8px; font-size: 13px; color: var(--muted); }
+.sheet-sub:first-child { margin-top: 0; }
+
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 브리프 원안은 38px였다. 범위/요일/모드 선택 칩은 주 탭 타깃이므로 44px로 올린다. */
+.chip { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 13px; cursor: pointer; }
+.chip-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.custom-range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.custom-range .field { margin-bottom: 0; }
+
+.wd-row { display: flex; gap: 4px; margin-top: 10px; }
+/* label 전체가 탭 영역이다(내부 checkbox를 감쌈). 내용만으로는 44px에 못 미쳐 직접 지정한다. */
+.wd-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; flex: 1; min-height: 44px; }
+.wd-chip input { width: 20px; height: 20px; }
+
+.paste-source { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.paste-preview { margin: 16px 0 0; padding: 10px; background: #F1F3F9; border-radius: var(--radius); font-size: 13px; font-weight: 600; text-align: center; }
+
+.menu-danger { color: var(--danger); }
+
+.subject-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.subject-row { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
+.subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.subject-row input[type="text"] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; }
+
+.backup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hidden-file { display: none; }

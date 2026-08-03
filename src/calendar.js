@@ -166,17 +166,7 @@
   }
 
   function onLongPress(dateKey) {
-    ui.openSheet({
-      title: dt.formatDateKorean(dateKey),
-      body: [
-        ui.el("div", { class: "menu" }, [
-          ui.el("button", { class: "menu-item", text: "이 날 복사", onclick: () => ui.toast("준비 중") }),
-          ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: () => ui.toast("준비 중") }),
-          ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => ui.toast("준비 중") }),
-          ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => ui.toast("준비 중") }),
-        ]),
-      ],
-    });
+    SP.sheets.dayMenu(dateKey, () => SP.app.showCalendar(SP.app.viewDate().year, SP.app.viewDate().month));
   }
 
   const api = { render, onLongPress, monthSummary, studyMinutesByDay };
