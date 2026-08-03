@@ -242,10 +242,20 @@
     const state = SP.app.state();
 
     function subjectRow(subject) {
+      // 과목을 고치면 시트 아래 화면의 태그 색·이름도 즉시 따라가야 한다.
+      // onDone을 부르지 않으면 다른 화면으로 갔다 돌아올 때까지 옛 색이 남는다.
       const nameInput = ui.el("input", { type: "text", value: subject.name, maxlength: "12",
-        onchange: (e) => { subjectsApi.updateSubject(state, subject.id, { name: e.target.value }); SP.app.persist(); } });
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { name: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
       const colorInput = ui.el("input", { type: "color", value: subject.color,
-        onchange: (e) => { subjectsApi.updateSubject(state, subject.id, { color: e.target.value }); SP.app.persist(); } });
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { color: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
       const removeBtn = ui.el("button", { class: "icon-btn", text: "🗑", "aria-label": "삭제", onclick: async () => {
         const count = subjectsApi.countReferences(state, subject.id);
         ui.closeSheet();
@@ -255,6 +265,7 @@
         if (!ok) { settings(onDone); return; }
         if (subjectsApi.removeSubject(state, subject.id) === -1) ui.toast("마지막 과목은 지울 수 없습니다.");
         SP.app.persist();
+        if (onDone) onDone();
         settings(onDone);
       } });
       return ui.el("div", { class: "subject-row" }, [colorInput, nameInput, removeBtn]);
@@ -303,6 +314,7 @@
         ui.el("button", { class: "btn add-btn", text: "+ 과목 추가", onclick: () => {
           subjectsApi.addSubject(state, "새 과목", "#DDDDDD");
           SP.app.persist();
+          if (onDone) onDone();
           settings(onDone);
         } }),
         ui.el("h3", { class: "sheet-sub", text: "백업" }),
