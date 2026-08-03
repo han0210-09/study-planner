@@ -177,8 +177,10 @@ button { font: inherit; color: inherit; }
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
 .tt-block-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+/* 블록 폭은 트랙 전체(390px 화면에서 약 330px)라 44px을 떼어줘도 내용이 충분히 남는다.
+   세로는 블록 높이에 갇히므로(30분 = 28px) 짧은 블록은 편집 시트의 완료 토글로 처리한다. */
 .tt-check {
-  flex: 0 0 22px; border: 0; background: rgba(255,255,255,.5);
+  flex: 0 0 44px; border: 0; background: rgba(255,255,255,.5);
   font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
 }
 .tt-block-done .tt-check { background: rgba(255,255,255,.75); }
@@ -210,3 +212,7 @@ button { font: inherit; color: inherit; }
 .stepper-label { font-size: 13px; color: var(--muted); }
 /* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다(cal-today-btn과 동일 패턴). 44px 아래로 내리면 안 된다. */
 .stepper-btn { min-height: 44px; padding: 0 12px; }
+
+/* 짧은 블록은 트랙 위 ✓가 작아 누르기 어렵다. 시트에서도 완료를 바꿀 수 있어야 한다. */
+.editor-done { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 14px; cursor: pointer; }
+.editor-done input { width: 24px; height: 24px; }

@@ -65,6 +65,9 @@
 
     const select = subjectsApi.buildSelect(state.settings.subjects, block.subjectId);
     const textInput = ui.el("input", { type: "text", value: block.text, placeholder: "무엇을 공부하나요?", maxlength: "40" });
+    // 30분 블록도 트랙에서는 28px밖에 안 된다. 짧은 블록의 ✓를 손가락으로 정확히
+    // 누르기는 어려우므로, 편집 시트에서도 완료를 바꿀 수 있어야 한다.
+    const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
 
     ui.openSheet({
       title: "시간 블록",
@@ -74,6 +77,7 @@
         stepper("종료", "end"),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "내용" }), textInput]),
+        ui.el("label", { class: "editor-done" }, [doneInput, ui.el("span", { text: "이 시간 공부 완료" })]),
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
@@ -81,7 +85,8 @@
           ui.closeSheet(); onChange();
         } }),
         ui.el("button", { class: "btn btn-primary", text: "저장", onclick: () => {
-          const next = { ...block, start, end, subjectId: select.value || null, text: textInput.value.trim() };
+          const next = { ...block, start, end, subjectId: select.value || null,
+            text: textInput.value.trim(), done: doneInput.checked };
           const check = storeApi.validateBlock(next);
           if (!check.ok) { ui.toast(check.error); return; }
           if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
