@@ -2138,13 +2138,24 @@ button { font: inherit; color: inherit; }
 
   function state() { return store.getState(); }
 
+  function writeNow() {
+    if (!store.save()) {
+      ui.showBanner("저장에 실패했습니다. 이 기기에 계획이 남지 않습니다. 설정에서 JSON 내보내기로 백업하세요.");
+    }
+  }
+
   function persist() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      if (!store.save()) {
-        ui.showBanner("저장에 실패했습니다. 이 기기에 계획이 남지 않습니다. 설정에서 JSON 내보내기로 백업하세요.");
-      }
-    }, 300);
+    saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 300);
+  }
+
+  // 디바운스 대기 중인 쓰기를 즉시 밀어 넣는다. 폰에서 체크 하나 하고 곧바로 앱을
+  // 내리거나 화면을 끄면 300ms를 못 채우고 그 편집이 통째로 사라진다.
+  function flush() {
+    if (saveTimer === null) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    writeNow();
   }
 
   function today() { return todayKey; }
@@ -2185,7 +2196,12 @@ button { font: inherit; color: inherit; }
     showCalendar(view.year, view.month);
 
     setInterval(refreshToday, 60000);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshToday(); });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) flush();
+      else refreshToday();
+    });
+    // iOS Safari에서는 beforeunload가 신뢰할 수 없다. pagehide가 홈 화면 앱에서도 온다.
+    window.addEventListener("pagehide", flush);
   }
 
   SP.app = { boot, state, persist, showCalendar, showDay, today, viewDate, store: () => store };
