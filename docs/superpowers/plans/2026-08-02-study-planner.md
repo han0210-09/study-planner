@@ -416,16 +416,25 @@ test("sanitizeState: 정상 데이터는 그대로", () => {
   assert.equal(state.days["2026-08-02"].blocks.length, 1);
 });
 
-test("sanitizeState: 손상 데이터를 복구한다", () => {
-  const r1 = store.sanitizeState(null);
-  assert.equal(r1.recovered, true);
-  assert.equal(r1.state.version, 1);
-  assert.ok(Array.isArray(r1.state.settings.subjects));
+test("sanitizeState: 저장된 데이터가 없는 첫 실행은 복구가 아니다", () => {
+  const r = store.sanitizeState(null);
+  assert.equal(r.recovered, false);
+  assert.equal(r.state.version, 1);
+  assert.ok(Array.isArray(r.state.settings.subjects));
+  assert.deepEqual(r.state.days, {});
+  assert.deepEqual(r.state.events, []);
+  assert.equal(store.sanitizeState(undefined).recovered, false);
+});
 
+test("sanitizeState: 손상 데이터를 복구한다", () => {
   const r2 = store.sanitizeState({ version: 1, days: "깨짐", events: null });
   assert.equal(r2.recovered, true);
   assert.deepEqual(r2.state.days, {});
   assert.deepEqual(r2.state.events, []);
+  // 객체가 아닌 값이 저장돼 있으면 그건 손상이다
+  assert.equal(store.sanitizeState("문자열").recovered, true);
+  assert.equal(store.sanitizeState(42).recovered, true);
+  assert.equal(store.sanitizeState([]).recovered, true);
 });
 
 test("sanitizeState: 달력에 없는 날짜 키와 일정을 걸러낸다", () => {
@@ -520,6 +529,12 @@ test("createStore: 저장 실패를 lastError로 알린다", () => {
   s.setDay("2026-08-02", { memo: "x" });
   s.save();
   assert.ok(s.lastError());
+});
+
+test("createStore: 빈 저장소에서 시작하면 복구 신호를 내지 않는다", () => {
+  // 첫 사용자가 오류 배너를 보면 안 된다.
+  const s = store.createStore(memoryStorage());
+  assert.deepEqual(s.load(), { recovered: false, readOnly: false });
 });
 
 test("createStore: 손상 데이터를 백업 키로 옮긴다", () => {
@@ -638,10 +653,14 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
   }
 
   function sanitizeState(raw) {
+    // 저장된 데이터가 아예 없는 첫 실행은 "복구"가 아니다. 구분하지 않으면 앱을 처음
+    // 켠 사용자에게 매번 데이터 손상 경고 배너가 뜬다. fresh일 때는 기본값을 몇 개
+    // 채워 넣든 recovered를 올리지 않는다.
+    const fresh = raw == null;
     let recovered = false;
-    const mark = () => { recovered = true; };
+    const mark = () => { if (!fresh) recovered = true; };
 
-    if (!raw || typeof raw !== "object") {
+    if (fresh || typeof raw !== "object" || Array.isArray(raw)) {
       mark();
       raw = {};
     }
