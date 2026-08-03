@@ -95,10 +95,14 @@
   }
 
   function sanitizeState(raw) {
+    // 저장된 데이터가 아예 없는 첫 실행은 "복구"가 아니다. 구분하지 않으면 앱을 처음
+    // 켠 사용자에게 매번 데이터 손상 경고 배너가 뜬다. fresh일 때는 기본값을 몇 개
+    // 채워 넣든 recovered를 올리지 않는다.
+    const fresh = raw == null;
     let recovered = false;
-    const mark = () => { recovered = true; };
+    const mark = () => { if (!fresh) recovered = true; };
 
-    if (!raw || typeof raw !== "object") {
+    if (fresh || typeof raw !== "object" || Array.isArray(raw)) {
       mark();
       raw = {};
     }
