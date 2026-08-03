@@ -2113,6 +2113,7 @@ git commit -m "feat: 앱 셸 - HTML 뼈대, UI 헬퍼, 화면 전환 라우터, 
   const ui = SP.ui;
 
   const LONG_PRESS_MS = 450;
+  const MOVE_TOLERANCE = 8;
 
   function monthDays(year, month) {
     return new Date(year, month, 0).getDate();
@@ -2150,22 +2151,33 @@ git commit -m "feat: 앱 셸 - HTML 뼈대, UI 헬퍼, 화면 전환 라우터, 
 
   function attachLongPress(node, dateKey) {
     let timer = null;
+    let startX = 0;
     let startY = 0;
     let fired = false;
+    let moved = false;
 
     const cancel = () => { clearTimeout(timer); timer = null; };
 
     node.addEventListener("pointerdown", (e) => {
       fired = false;
+      moved = false;
+      startX = e.clientX;
       startY = e.clientY;
       timer = setTimeout(() => { fired = true; api.onLongPress(dateKey); }, LONG_PRESS_MS);
     });
     node.addEventListener("pointermove", (e) => {
-      if (timer && Math.abs(e.clientY - startY) > 8) cancel();
+      if (moved) return;
+      if (Math.abs(e.clientY - startY) > MOVE_TOLERANCE ||
+          Math.abs(e.clientX - startX) > MOVE_TOLERANCE) {
+        moved = true;
+        cancel();
+      }
     });
     node.addEventListener("pointerup", () => {
       cancel();
-      if (!fired) SP.app.showDay(dateKey);
+      // 드래그로 끝났으면 날짜를 열지 않는다. touch-action: pan-y는 터치에만 걸리므로
+      // 마우스로 끌었다 놓으면 pointercancel이 오지 않는다. moved가 유일한 방어선이다.
+      if (!fired && !moved) SP.app.showDay(dateKey);
     });
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("pointerleave", cancel);
@@ -2286,7 +2298,8 @@ git commit -m "feat: 앱 셸 - HTML 뼈대, UI 헬퍼, 화면 전환 라우터, 
 /* ---------- 달력 ---------- */
 .cal-head { display: grid; grid-template-columns: 44px 1fr 44px auto; align-items: center; gap: 4px; margin-bottom: 8px; }
 .cal-title { margin: 0; font-size: 18px; text-align: center; }
-.cal-today-btn { min-height: 36px; padding: 0 10px; font-size: 13px; }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다. 44px 아래로 내리면 안 된다. */
+.cal-today-btn { min-height: 44px; padding: 0 10px; font-size: 13px; }
 
 .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
