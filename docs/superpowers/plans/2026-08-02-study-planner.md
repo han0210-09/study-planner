@@ -21,6 +21,9 @@
 - 블록끼리 겹칠 수 없다. 최소 블록 길이 5분.
 - 테스트 실행 명령은 항상 `node --test` (인자 없음). Node 24는 `node --test test/`처럼 디렉터리를 인자로 주면 그것을 테스트 폴더가 아니라 **모듈 진입점**으로 해석해 `MODULE_NOT_FOUND`로 죽는다. 인자 없이 실행하면 `**/*.test.js`를 자동 탐색한다. 개별 파일을 돌릴 때만 `node --test test/<파일>.test.js` 형태로 경로를 준다.
 - UI 문구는 한국어.
+- 최소 터치 타깃 44px. **보이는 크기가 아니라 탭 영역** 기준이다. 작게 보여야 하는 컨트롤은 투명 여백으로 넓힌다 — To-Do 체크박스는 24px 상자를 44px `label`로 감싸고, `input`에는 가상요소가 먹지 않으므로 CSS만으로 해결하려 하지 말 것. 유일한 예외는 세로로 붙는 To-Do 순서 변경 화살표로, 각 44×22이며 두 개가 합쳐 44×44를 차지한다(각각에 44px 높이를 주면 목록 행이 88px이 되어 한 화면에 몇 줄 들어가지 않는다).
+- 390px 폭에서 가로 스크롤이 생기면 안 된다.
+- CSS를 덧붙일 때 **캐스케이드를 확인할 것.** 같은 특이도의 규칙이 뒤에 오면 앞의 값을 덮는다. `.btn`(44px)에 `.cal-today-btn` 같은 단일 클래스를 겹쳐 쓰면서 더 작은 `min-height`를 주면 44px 규칙이 조용히 깨진다.
 
 ---
 
@@ -2474,15 +2477,17 @@ git commit -m "feat: 월간 달력 - 일정 배지, 공부량 막대, 길게 눌
           ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
           ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
         ]),
-        ui.el("input", {
-          type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
-          onchange: (e) => {
-            const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
-            SP.app.store().setDay(dateKey, { todos });
-            SP.app.persist();
-            onChange();
-          },
-        }),
+        ui.el("label", { class: "todo-check-hit" }, [
+          ui.el("input", {
+            type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
+            onchange: (e) => {
+              const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
+              SP.app.store().setDay(dateKey, { todos });
+              SP.app.persist();
+              onChange();
+            },
+          }),
+        ]),
       ])
     );
 
@@ -2685,8 +2690,16 @@ git commit -m "feat: 월간 달력 - 일정 배지, 공부량 막대, 길게 눌
 .todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 32px; }
 .todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
 .todo-order { display: flex; flex-direction: column; }
-.icon-btn.tiny { min-width: 28px; min-height: 20px; font-size: 10px; padding: 0; }
+/* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
+   세로로 각각 44px을 주면 목록 행이 88px이 되어 한 화면에 몇 줄 안 들어간다. */
+.icon-btn.tiny { min-width: 44px; min-height: 22px; font-size: 10px; padding: 0; }
 .icon-btn.tiny[disabled] { opacity: .25; }
+/* 체크박스는 이 앱의 핵심 동작이다. 보이는 상자는 24px이지만 탭 영역은 44px로 넓힌다.
+   input에는 가상요소가 안 먹으므로 label로 감싼다. */
+.todo-check-hit {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; cursor: pointer;
+}
 .todo-check { width: 24px; height: 24px; }
 .subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
 
