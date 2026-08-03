@@ -91,7 +91,10 @@
       ui.el("h2", { class: "card-title", text: "메모" }),
       ui.el("textarea", {
         class: "memo", placeholder: "자유롭게 적으세요", maxlength: "1000",
-        onchange: (e) => { SP.app.store().setDay(dateKey, { memo: e.target.value }); SP.app.persist(); },
+        // change(블러)만 듣지 말 것. 메모에는 저장 버튼이 없어서, 타이핑하다 바로
+        // 앱을 내리면 포커스가 빠지지 않아 flush에 담길 내용 자체가 없다.
+        // persist()의 300ms 디바운스가 타이핑 연타를 흡수한다.
+        oninput: (e) => { SP.app.store().setDay(dateKey, { memo: e.target.value }); SP.app.persist(); },
       }),
     ]);
   }

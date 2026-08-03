@@ -239,3 +239,22 @@ test("createStore: 손상 데이터를 백업 키로 옮긴다", () => {
   const backupKeys = [...storage._map.keys()].filter((k) => k.includes("corrupt"));
   assert.equal(backupKeys.length, 1);
 });
+
+test("sanitizeState: 모양이 깨진 clipboard를 버린다", () => {
+  const bad = [{ kind: "day" }, { kind: "day", payload: {} }, { kind: "week", payload: {} }, {}, 42];
+  for (const c of bad) {
+    assert.equal(store.sanitizeState({ version: 1, clipboard: c }).state.clipboard, null);
+  }
+  const goodDay = { kind: "day", copiedAt: 1, payload: { todos: [], blocks: [] } };
+  assert.deepEqual(store.sanitizeState({ version: 1, clipboard: goodDay }).state.clipboard, goodDay);
+  const goodWeek = { kind: "week", copiedAt: 1, payload: { byWeekday: {} } };
+  assert.deepEqual(store.sanitizeState({ version: 1, clipboard: goodWeek }).state.clipboard, goodWeek);
+});
+
+test("sanitizeState: 과목 목록이 비면 기본 과목으로 되돌린다", () => {
+  const r = store.sanitizeState({ version: 1, settings: { subjects: [null] }, days: {}, events: [] });
+  assert.equal(r.state.settings.subjects.length, store.DEFAULT_SUBJECTS.length);
+  assert.equal(r.recovered, true);
+  const r2 = store.sanitizeState({ version: 1, settings: { subjects: [] }, days: {}, events: [] });
+  assert.equal(r2.state.settings.subjects.length, store.DEFAULT_SUBJECTS.length);
+});

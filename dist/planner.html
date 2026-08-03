@@ -479,9 +479,12 @@ button { font: inherit; color: inherit; }
     const readOnly = version > SCHEMA_VERSION;
     if (typeof raw.version !== "number") mark();
 
+    // 걸러낸 뒤에 기본값을 채운다. 순서를 바꾸면 subjects: [null] 같은 입력이
+    // 빈 과목 목록으로 남아 앱에 과목이 하나도 없게 된다.
     let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
-    if (!subjects || subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
-    subjects = subjects.filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (!subjects) mark();
+    subjects = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
 
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
@@ -515,7 +518,20 @@ button { font: inherit; color: inherit; }
         memo: typeof e.memo === "string" ? e.memo : "",
       }));
 
-    const clipboard = raw.clipboard && typeof raw.clipboard === "object" ? raw.clipboard : null;
+    // clipboard는 describeClip이 ⋯ 메뉴를 그릴 때마다 읽는다. 모양이 깨진 값을
+    // 통과시키면 메뉴가 통째로 안 열리고, 앱 안에서 복구할 방법이 없어진다.
+    let clipboard = null;
+    const rawClip = raw.clipboard;
+    if (rawClip && typeof rawClip === "object" && rawClip.payload && typeof rawClip.payload === "object") {
+      if (rawClip.kind === "day" &&
+          Array.isArray(rawClip.payload.todos) && Array.isArray(rawClip.payload.blocks)) {
+        clipboard = rawClip;
+      } else if (rawClip.kind === "week" &&
+                 rawClip.payload.byWeekday && typeof rawClip.payload.byWeekday === "object") {
+        clipboard = rawClip;
+      }
+    }
+    if (raw.clipboard && !clipboard) mark();
 
     return {
       state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard },
@@ -1316,6 +1332,14 @@ button { font: inherit; color: inherit; }
           try { parsed = JSON.parse(reader.result); }
           catch (_) { ui.toast("JSON 파일을 읽을 수 없습니다."); return; }
           const result = storeApi.sanitizeState(parsed);
+          // 파싱은 됐지만 이 앱의 백업 파일이 아니면 통째로 기본값이 된다. 그대로
+          // 진행하면 학생이 파일을 잘못 골랐을 때 한 학기 기록이 빈 상태로 덮이고
+          // "불러왔습니다"라고 뜬다. 되돌릴 수 없으므로 여기서 막는다.
+          const empty = Object.keys(result.state.days).length === 0 && result.state.events.length === 0;
+          if (result.recovered || empty) {
+            ui.toast("이 앱의 백업 파일이 아닙니다. 불러오지 않았습니다.");
+            return;
+          }
           ui.closeSheet();
           const ok = await ui.confirmDialog("현재 기기의 계획을 파일 내용으로 완전히 교체합니다.\n되돌릴 수 없습니다.");
           if (!ok) { settings(onDone); return; }
@@ -1879,7 +1903,10 @@ button { font: inherit; color: inherit; }
       ui.el("h2", { class: "card-title", text: "메모" }),
       ui.el("textarea", {
         class: "memo", placeholder: "자유롭게 적으세요", maxlength: "1000",
-        onchange: (e) => { SP.app.store().setDay(dateKey, { memo: e.target.value }); SP.app.persist(); },
+        // change(블러)만 듣지 말 것. 메모에는 저장 버튼이 없어서, 타이핑하다 바로
+        // 앱을 내리면 포커스가 빠지지 않아 flush에 담길 내용 자체가 없다.
+        // persist()의 300ms 디바운스가 타이핑 연타를 흡수한다.
+        oninput: (e) => { SP.app.store().setDay(dateKey, { memo: e.target.value }); SP.app.persist(); },
       }),
     ]);
   }

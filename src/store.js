@@ -111,9 +111,12 @@
     const readOnly = version > SCHEMA_VERSION;
     if (typeof raw.version !== "number") mark();
 
+    // 걸러낸 뒤에 기본값을 채운다. 순서를 바꾸면 subjects: [null] 같은 입력이
+    // 빈 과목 목록으로 남아 앱에 과목이 하나도 없게 된다.
     let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
-    if (!subjects || subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
-    subjects = subjects.filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (!subjects) mark();
+    subjects = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
 
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
@@ -147,7 +150,20 @@
         memo: typeof e.memo === "string" ? e.memo : "",
       }));
 
-    const clipboard = raw.clipboard && typeof raw.clipboard === "object" ? raw.clipboard : null;
+    // clipboard는 describeClip이 ⋯ 메뉴를 그릴 때마다 읽는다. 모양이 깨진 값을
+    // 통과시키면 메뉴가 통째로 안 열리고, 앱 안에서 복구할 방법이 없어진다.
+    let clipboard = null;
+    const rawClip = raw.clipboard;
+    if (rawClip && typeof rawClip === "object" && rawClip.payload && typeof rawClip.payload === "object") {
+      if (rawClip.kind === "day" &&
+          Array.isArray(rawClip.payload.todos) && Array.isArray(rawClip.payload.blocks)) {
+        clipboard = rawClip;
+      } else if (rawClip.kind === "week" &&
+                 rawClip.payload.byWeekday && typeof rawClip.payload.byWeekday === "object") {
+        clipboard = rawClip;
+      }
+    }
+    if (raw.clipboard && !clipboard) mark();
 
     return {
       state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard },

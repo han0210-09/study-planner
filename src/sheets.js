@@ -291,6 +291,14 @@
           try { parsed = JSON.parse(reader.result); }
           catch (_) { ui.toast("JSON 파일을 읽을 수 없습니다."); return; }
           const result = storeApi.sanitizeState(parsed);
+          // 파싱은 됐지만 이 앱의 백업 파일이 아니면 통째로 기본값이 된다. 그대로
+          // 진행하면 학생이 파일을 잘못 골랐을 때 한 학기 기록이 빈 상태로 덮이고
+          // "불러왔습니다"라고 뜬다. 되돌릴 수 없으므로 여기서 막는다.
+          const empty = Object.keys(result.state.days).length === 0 && result.state.events.length === 0;
+          if (result.recovered || empty) {
+            ui.toast("이 앱의 백업 파일이 아닙니다. 불러오지 않았습니다.");
+            return;
+          }
           ui.closeSheet();
           const ok = await ui.confirmDialog("현재 기기의 계획을 파일 내용으로 완전히 교체합니다.\n되돌릴 수 없습니다.");
           if (!ok) { settings(onDone); return; }
