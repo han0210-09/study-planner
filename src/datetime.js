@@ -41,6 +41,13 @@
     return new Date(y, m - 1, d);
   }
 
+  // 모양만 보면 안 된다. "2026-02-30"은 정규식을 통과하지만 파싱하면 3월 2일이 되어
+  // 화면에 뜨는 날짜와 D-day 계산이 어긋난다. 왕복시켜 같은 문자열이 나오는지 본다.
+  function isValidDateKey(key) {
+    if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+    return dateKey(parseDateKey(key)) === key;
+  }
+
   function addDays(key, n) {
     const d = parseDateKey(key);
     d.setDate(d.getDate() + n);
@@ -77,7 +84,7 @@
   const datetime = {
     DAY_START, DAY_END, SLOT, DAY_BOUNDARY_HOUR, WEEKDAY_NAMES,
     snapToSlot, clampToDay, minutesToLabel, formatDuration,
-    dateKey, parseDateKey, addDays, daysBetween, weekdayOf,
+    dateKey, parseDateKey, isValidDateKey, addDays, daysBetween, weekdayOf,
     plannerDateKey, formatDateKorean,
   };
 

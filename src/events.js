@@ -9,7 +9,9 @@
     { id: "etc", label: "기타", color: "#FFA94D" },
   ];
 
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  // 달력에 실제로 존재하는 날짜만 통과시킨다. 모양만 맞는 "2026-02-30"을 받아주면
+  // 배지에는 2026-02-30이 뜨는데 D-day는 3월 2일 기준으로 계산되어 조용히 어긋난다.
+  const isDate = (k) => dt.isValidDateKey(k);
 
   function typeOf(id) {
     return EVENT_TYPES.find((t) => t.id === id) || EVENT_TYPES[EVENT_TYPES.length - 1];
@@ -61,9 +63,9 @@
   function addEvent(state, input) {
     const title = String((input && input.title) || "").trim();
     if (!title) return null;
-    if (!input || !DATE_RE.test(input.startDate)) return null;
+    if (!input || !isDate(input.startDate)) return null;
     let startDate = input.startDate;
-    let endDate = DATE_RE.test(input.endDate) ? input.endDate : startDate;
+    let endDate = isDate(input.endDate) ? input.endDate : startDate;
     if (endDate < startDate) [startDate, endDate] = [endDate, startDate];
     const type = typeOf(input.type).id;
     const created = {
@@ -82,8 +84,8 @@
     if (typeof patch.title === "string" && patch.title.trim()) e.title = patch.title.trim();
     if (patch.type) { e.type = typeOf(patch.type).id; e.color = patch.color || typeOf(e.type).color; }
     if (typeof patch.color === "string") e.color = patch.color;
-    if (DATE_RE.test(patch.startDate)) e.startDate = patch.startDate;
-    if (DATE_RE.test(patch.endDate)) e.endDate = patch.endDate;
+    if (isDate(patch.startDate)) e.startDate = patch.startDate;
+    if (isDate(patch.endDate)) e.endDate = patch.endDate;
     if (e.endDate < e.startDate) [e.startDate, e.endDate] = [e.endDate, e.startDate];
     if (typeof patch.memo === "string") e.memo = patch.memo;
     return true;

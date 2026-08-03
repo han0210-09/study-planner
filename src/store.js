@@ -114,7 +114,7 @@
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
     for (const [key, value] of Object.entries(rawDays)) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) { mark(); continue; }
+      if (!dt.isValidDateKey(key)) { mark(); continue; }
       if (!value || typeof value !== "object") { mark(); continue; }
       const day = emptyDay();
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
@@ -136,10 +136,10 @@
     }
 
     const events = (Array.isArray(raw.events) ? raw.events : (mark(), []))
-      .filter((e) => e && typeof e.title === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.startDate))
+      .filter((e) => e && typeof e.title === "string" && dt.isValidDateKey(e.startDate))
       .map((e) => ({
         id: e.id || newId(), title: e.title, type: e.type || "etc", color: e.color || "#FFA94D",
-        startDate: e.startDate, endDate: /^\d{4}-\d{2}-\d{2}$/.test(e.endDate) ? e.endDate : e.startDate,
+        startDate: e.startDate, endDate: dt.isValidDateKey(e.endDate) ? e.endDate : e.startDate,
         memo: typeof e.memo === "string" ? e.memo : "",
       }));
 

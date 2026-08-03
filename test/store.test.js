@@ -136,6 +136,26 @@ test("sanitizeState: 잘못된 블록과 빈 날을 걸러낸다", () => {
   assert.equal(state.days["2026-08-03"], undefined);
 });
 
+test("sanitizeState: 달력에 없는 날짜 키와 일정을 걸러낸다", () => {
+  const raw = {
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#FFE08A" }], dayBoundaryHour: 4 },
+    days: {
+      "2026-08-02": { achievement: 0, memo: "정상", todos: [], blocks: [], updatedAt: 1 },
+      "2026-02-30": { achievement: 0, memo: "가짜", todos: [], blocks: [], updatedAt: 1 },
+    },
+    events: [
+      { id: "ok", title: "정상", type: "exam", startDate: "2026-08-14", endDate: "2026-08-14" },
+      { id: "bad", title: "가짜", type: "exam", startDate: "2026-13-01", endDate: "2026-13-01" },
+    ],
+  };
+  const { state, recovered } = store.sanitizeState(raw);
+  assert.equal(recovered, true);
+  assert.ok(state.days["2026-08-02"]);
+  assert.equal(state.days["2026-02-30"], undefined);
+  assert.deepEqual(state.events.map((e) => e.id), ["ok"]);
+});
+
 test("sanitizeState: 상위 version은 readOnly로 표시한다", () => {
   const { state, readOnly } = store.sanitizeState({ version: 99, days: {}, events: [] });
   assert.equal(readOnly, true);

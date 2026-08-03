@@ -83,6 +83,26 @@ test("addEvent: 종료일이 시작일보다 빠르면 뒤집는다", () => {
   assert.equal(created.endDate, "2026-08-22");
 });
 
+test("addEvent: 달력에 없는 날짜를 거부한다", () => {
+  const { state } = store.sanitizeState(null);
+  // 모양은 맞지만 존재하지 않는 날 — 받아주면 배지 날짜와 D-day 계산이 어긋난다
+  assert.equal(events.addEvent(state, { title: "x", startDate: "2026-02-30" }), null);
+  assert.equal(events.addEvent(state, { title: "x", startDate: "2026-13-01" }), null);
+  assert.equal(state.events.length, 0);
+  // 잘못된 종료일은 시작일로 대체되고, 일정 자체는 살아남는다
+  const created = events.addEvent(state, { title: "수행", startDate: "2026-08-14", endDate: "2026-02-30" });
+  assert.equal(created.endDate, "2026-08-14");
+  // 윤년 2월 29일은 진짜 날짜다
+  assert.ok(events.addEvent(state, { title: "윤년", startDate: "2028-02-29" }));
+});
+
+test("updateEvent: 달력에 없는 날짜 패치를 무시한다", () => {
+  const { state } = store.sanitizeState(null);
+  const created = events.addEvent(state, { title: "수행", startDate: "2026-08-14" });
+  assert.equal(events.updateEvent(state, created.id, { startDate: "2026-02-30" }), true);
+  assert.equal(state.events[0].startDate, "2026-08-14");
+});
+
 test("updateEvent / removeEvent", () => {
   const { state } = store.sanitizeState(null);
   const created = events.addEvent(state, { title: "수행", startDate: "2026-08-14" });

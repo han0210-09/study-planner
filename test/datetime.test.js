@@ -53,6 +53,24 @@ test("dateKey / parseDateKey: 로컬 기준 왕복", () => {
   assert.equal(dt.dateKey(dt.parseDateKey("2026-12-31")), "2026-12-31");
 });
 
+test("isValidDateKey: 달력에 없는 날짜를 거른다", () => {
+  assert.equal(dt.isValidDateKey("2026-08-02"), true);
+  assert.equal(dt.isValidDateKey("2028-02-29"), true);
+  assert.equal(dt.isValidDateKey("2026-12-31"), true);
+  // 모양은 맞지만 존재하지 않는 날짜 — 파싱하면 다른 날로 굴러간다
+  assert.equal(dt.isValidDateKey("2026-02-29"), false);
+  assert.equal(dt.isValidDateKey("2026-02-30"), false);
+  assert.equal(dt.isValidDateKey("2026-04-31"), false);
+  assert.equal(dt.isValidDateKey("2026-13-01"), false);
+  assert.equal(dt.isValidDateKey("2026-00-10"), false);
+  // 모양 자체가 틀린 것
+  assert.equal(dt.isValidDateKey("2026-8-2"), false);
+  assert.equal(dt.isValidDateKey("엉망"), false);
+  assert.equal(dt.isValidDateKey(""), false);
+  assert.equal(dt.isValidDateKey(null), false);
+  assert.equal(dt.isValidDateKey(undefined), false);
+});
+
 test("addDays: 월말과 윤년 경계", () => {
   assert.equal(dt.addDays("2026-08-02", 1), "2026-08-03");
   assert.equal(dt.addDays("2026-08-31", 1), "2026-09-01");
