@@ -2687,7 +2687,9 @@ git commit -m "feat: 월간 달력 - 일정 배지, 공부량 막대, 길게 눌
 .todo-list { list-style: none; margin: 0 0 10px; padding: 0; }
 .todo-row { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 32px; }
+/* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
+   행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
+.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 44px; }
 .todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
 .todo-order { display: flex; flex-direction: column; }
 /* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
