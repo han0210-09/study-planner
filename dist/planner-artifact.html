@@ -1,0 +1,2246 @@
+<title>스터디 플래너</title>
+<script>
+(function () {
+  function meta(attr, name, content) {
+    if (document.querySelector("meta[" + attr + '="' + name + '"]')) return;
+    var m = document.createElement("meta");
+    m.setAttribute(attr, name);
+    m.setAttribute("content", content);
+    document.head.appendChild(m);
+  }
+  meta("name", "viewport", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover");
+  meta("name", "theme-color", "#4C6EF5");
+  meta("name", "apple-mobile-web-app-capable", "yes");
+  meta("name", "apple-mobile-web-app-status-bar-style", "default");
+  if (document.title !== "스터디 플래너") document.title = "스터디 플래너";
+})();
+</script>
+<style>
+
+:root {
+  --bg: #FAFAFB;
+  --surface: #FFFFFF;
+  --line: #E4E6EB;
+  --text: #1F2329;
+  --muted: #767C87;
+  --accent: #4C6EF5;
+  --danger: #E03131;
+  --radius: 12px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+body.sheet-open { overflow: hidden; }
+
+.screen { max-width: 560px; margin: 0 auto; padding: 12px 12px calc(24px + var(--safe-b)); }
+
+.banner {
+  position: sticky; top: 0; z-index: 40;
+  background: #FFF3BF; color: #7A5B00;
+  padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #FFE08A;
+}
+
+button { font: inherit; color: inherit; }
+.btn {
+  min-height: 44px; padding: 0 16px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+}
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-ghost { background: transparent; }
+.icon-btn {
+  min-width: 44px; min-height: 44px; border: 0; background: transparent;
+  border-radius: var(--radius); cursor: pointer; font-size: 18px;
+}
+
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 51;
+  max-width: 560px; margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  max-height: 86vh; display: flex; flex-direction: column;
+  padding-bottom: var(--safe-b);
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--line); }
+.sheet-title { margin: 0; font-size: 16px; }
+.sheet-body { padding: 16px; overflow-y: auto; }
+.sheet-actions { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.sheet-actions .btn { flex: 1; }
+.confirm-msg { margin: 0; white-space: pre-line; }
+
+#toast-root { position: fixed; left: 0; right: 0; bottom: calc(24px + var(--safe-b)); z-index: 60; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.toast { background: rgba(31,35,41,.92); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; transition: opacity .3s; }
+.toast-out { opacity: 0; }
+
+.field { display: block; margin-bottom: 14px; }
+.field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.field input[type="text"], .field input[type="date"], .field textarea, .field select {
+  width: 100%; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); font: inherit;
+}
+.field textarea { min-height: 88px; resize: vertical; }
+
+/* ---------- 달력 ---------- */
+.cal-head { display: grid; grid-template-columns: 44px 1fr 44px auto; align-items: center; gap: 4px; margin-bottom: 8px; }
+.cal-title { margin: 0; font-size: 18px; text-align: center; }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다. 44px 아래로 내리면 안 된다. */
+.cal-today-btn { min-height: 44px; padding: 0 10px; font-size: 13px; }
+
+.cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.cal-sun { color: #E03131; }
+.cal-sat { color: #1C7ED6; }
+
+.cal-cell {
+  min-height: 74px; padding: 4px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 2px;
+  cursor: pointer; touch-action: pan-y; user-select: none;
+}
+.cal-cell-out { background: transparent; border: 0; min-height: 74px; cursor: default; }
+.cal-today { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent) inset; }
+.cal-num { font-size: 13px; font-weight: 600; }
+
+.cal-badges { display: flex; flex-direction: column; gap: 1px; min-height: 0; }
+.cal-badge { display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 1.2; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.cal-badge-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { font-size: 10px; color: var(--muted); }
+
+.cal-bar { margin-top: auto; height: 4px; background: #EDEFF3; border-radius: 2px; overflow: hidden; }
+.cal-bar-fill { height: 100%; background: var(--accent); }
+.cal-achieve { font-size: 10px; color: var(--muted); text-align: right; }
+
+.cal-summary { display: flex; justify-content: space-between; margin-top: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--muted); }
+
+.menu { display: flex; flex-direction: column; }
+.menu-item { min-height: 48px; text-align: left; padding: 0 4px; border: 0; background: transparent; border-bottom: 1px solid var(--line); cursor: pointer; }
+.menu-item:last-child { border-bottom: 0; }
+
+/* ---------- 하루 화면 ---------- */
+.day-head { display: grid; grid-template-columns: 44px auto 1fr 44px; align-items: center; gap: 6px; margin-bottom: 10px; }
+.day-nav { display: flex; align-items: center; justify-content: center; gap: 2px; }
+.day-date { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.dday { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.dday-none { background: #E9ECEF; color: var(--muted); font-weight: 500; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+.card-title { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.empty { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.add-btn { width: 100%; }
+
+.achieve-head { display: flex; justify-content: space-between; align-items: baseline; }
+.achieve-value { font-size: 18px; font-weight: 700; }
+.achieve-slider { width: 100%; margin: 4px 0; }
+.achieve-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+.event-list { list-style: none; margin: 0; padding: 0; }
+.event-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.event-item:last-child { border-bottom: 0; }
+.event-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.event-title { flex: 1; font-weight: 600; }
+.event-type { font-size: 11px; color: var(--muted); }
+
+.todo-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.todo-row { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+/* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
+   행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
+.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 44px; }
+.todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
+.todo-order { display: flex; flex-direction: column; }
+/* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
+   세로로 각각 44px을 주면 목록 행이 88px이 되어 한 화면에 몇 줄 안 들어간다. */
+.icon-btn.tiny { min-width: 44px; min-height: 22px; font-size: 10px; padding: 0; }
+.icon-btn.tiny[disabled] { opacity: .25; }
+/* 체크박스는 이 앱의 핵심 동작이다. 보이는 상자는 24px이지만 탭 영역은 44px로 넓힌다.
+   input에는 가상요소가 안 먹으므로 label로 감싼다. */
+.todo-check-hit {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; cursor: pointer;
+}
+.todo-check { width: 24px; height: 24px; }
+.subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
+
+.totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
+.totals-label { color: var(--muted); font-size: 13px; }
+.totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.totals-fill { height: 100%; background: var(--accent); }
+.totals-ratio { text-align: right; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.memo { width: 100%; min-height: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
+
+/* ---------- 타임테이블 ---------- */
+.tt-track {
+  position: relative; margin-left: 46px; margin-top: 8px;
+  background: var(--surface); border-left: 1px solid var(--line);
+  touch-action: pan-y; user-select: none;
+}
+.tt-hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.tt-hour-label { position: absolute; left: -46px; top: -8px; width: 42px; text-align: right; font-size: 11px; color: var(--muted); }
+.tt-tick { position: absolute; left: 0; width: 5px; border-top: 1px solid #F1F3F5; }
+.tt-tick-half { width: 10px; border-top-color: #E9ECEF; }
+
+.tt-block {
+  position: absolute; left: 2px; right: 2px; min-height: 10px;
+  border-radius: 6px; overflow: hidden; display: flex; align-items: stretch;
+  filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.tt-block-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+/* 블록 폭은 트랙 전체(390px 화면에서 약 330px)라 44px을 떼어줘도 내용이 충분히 남는다.
+   세로는 블록 높이에 갇히므로(30분 = 28px) 짧은 블록은 편집 시트의 완료 토글로 처리한다. */
+.tt-check {
+  flex: 0 0 44px; border: 0; background: rgba(255,255,255,.5);
+  font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
+}
+.tt-block-done .tt-check { background: rgba(255,255,255,.75); }
+.tt-body {
+  flex: 1; border: 0; background: transparent; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  padding: 0 6px; overflow: hidden; text-align: left;
+}
+.tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tt-time { font-size: 9px; opacity: .65; }
+.tt-handle { position: absolute; left: 0; right: 0; height: 14px; cursor: ns-resize; touch-action: none; }
+.tt-handle-top { top: -4px; }
+.tt-handle-bottom { bottom: -4px; }
+
+.tt-ghost {
+  position: absolute; left: 2px; right: 2px;
+  background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
+  border-radius: 6px; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.85); padding: 1px 5px; border-radius: 4px; }
+
+.tt-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--danger); pointer-events: none; }
+.tt-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+.editor-range { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; margin-bottom: 12px; }
+.editor-duration { font-size: 13px; color: var(--muted); }
+.stepper { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 10px; }
+.stepper-label { font-size: 13px; color: var(--muted); }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다(cal-today-btn과 동일 패턴). 44px 아래로 내리면 안 된다. */
+.stepper-btn { min-height: 44px; padding: 0 12px; }
+
+/* 짧은 블록은 트랙 위 ✓가 작아 누르기 어렵다. 시트에서도 완료를 바꿀 수 있어야 한다. */
+.editor-done { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 14px; cursor: pointer; }
+.editor-done input { width: 24px; height: 24px; }
+
+/* ---------- 시트 내부 ---------- */
+.sheet-sub { margin: 16px 0 8px; font-size: 13px; color: var(--muted); }
+.sheet-sub:first-child { margin-top: 0; }
+
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 브리프 원안은 38px였다. 범위/요일/모드 선택 칩은 주 탭 타깃이므로 44px로 올린다. */
+.chip { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 13px; cursor: pointer; }
+.chip-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.custom-range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.custom-range .field { margin-bottom: 0; }
+
+.wd-row { display: flex; gap: 4px; margin-top: 10px; }
+/* label 전체가 탭 영역이다(내부 checkbox를 감쌈). 내용만으로는 44px에 못 미쳐 직접 지정한다. */
+.wd-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; flex: 1; min-height: 44px; }
+.wd-chip input { width: 20px; height: 20px; }
+
+.paste-source { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.paste-preview { margin: 16px 0 0; padding: 10px; background: #F1F3F9; border-radius: var(--radius); font-size: 13px; font-weight: 600; text-align: center; }
+
+.menu-danger { color: var(--danger); }
+
+.subject-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.subject-row { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
+.subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.subject-row input[type="text"] { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; }
+
+.backup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hidden-file { display: none; }
+
+
+</style>
+<div id="banner" class="banner" hidden></div>
+  <main id="screen-calendar" class="screen"></main>
+  <main id="screen-day" class="screen" hidden></main>
+  <div id="sheet-root"></div>
+  <div id="toast-root"></div>
+
+  <script>
+(function (root) {
+  const DAY_START = 300;   // 05:00
+  const DAY_END = 1560;    // 익일 02:00
+  const SLOT = 5;
+  const DAY_BOUNDARY_HOUR = 4;
+  const WEEKDAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+  function pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function snapToSlot(minutes) {
+    return Math.round(minutes / SLOT) * SLOT;
+  }
+
+  function clampToDay(minutes) {
+    return Math.min(DAY_END, Math.max(DAY_START, minutes));
+  }
+
+  function minutesToLabel(minutes) {
+    const wrapped = ((minutes % 1440) + 1440) % 1440;
+    return pad2(Math.floor(wrapped / 60)) + ":" + pad2(wrapped % 60);
+  }
+
+  function formatDuration(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return m + "분";
+    if (m === 0) return h + "시간";
+    return h + "시간 " + m + "분";
+  }
+
+  function dateKey(date) {
+    return (
+      date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate())
+    );
+  }
+
+  function parseDateKey(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  // 모양만 보면 안 된다. "2026-02-30"은 정규식을 통과하지만 파싱하면 3월 2일이 되어
+  // 화면에 뜨는 날짜와 D-day 계산이 어긋난다. 왕복시켜 같은 문자열이 나오는지 본다.
+  function isValidDateKey(key) {
+    if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+    return dateKey(parseDateKey(key)) === key;
+  }
+
+  function addDays(key, n) {
+    const d = parseDateKey(key);
+    d.setDate(d.getDate() + n);
+    return dateKey(d);
+  }
+
+  function toUTCms(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  }
+
+  function daysBetween(fromKey, toKey) {
+    return Math.round((toUTCms(toKey) - toUTCms(fromKey)) / 86400000);
+  }
+
+  function weekdayOf(key) {
+    return parseDateKey(key).getDay();
+  }
+
+  function plannerDateKey(now) {
+    const shifted = new Date(now.getTime());
+    shifted.setHours(shifted.getHours() - DAY_BOUNDARY_HOUR);
+    return dateKey(shifted);
+  }
+
+  function formatDateKorean(key) {
+    const d = parseDateKey(key);
+    return (
+      d.getFullYear() + ". " + (d.getMonth() + 1) + ". " + d.getDate() +
+      ". (" + WEEKDAY_NAMES[d.getDay()] + ")"
+    );
+  }
+
+  const datetime = {
+    DAY_START, DAY_END, SLOT, DAY_BOUNDARY_HOUR, WEEKDAY_NAMES,
+    snapToSlot, clampToDay, minutesToLabel, formatDuration,
+    dateKey, parseDateKey, isValidDateKey, addDays, daysBetween, weekdayOf,
+    plannerDateKey, formatDateKorean,
+  };
+
+  root.SP = root.SP || {};
+  root.SP.datetime = datetime;
+  if (typeof module !== "undefined") module.exports = datetime;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
+
+  const STORAGE_KEY = "studyPlanner.v1";
+  const SCHEMA_VERSION = 1;
+
+  const DEFAULT_SUBJECTS = [
+    { id: "kor", name: "국어", color: "#FFE08A" },
+    { id: "eng", name: "영어", color: "#A8E6CF" },
+    { id: "math", name: "수학", color: "#FFB3BA" },
+    { id: "soc", name: "사회", color: "#BAE1FF" },
+    { id: "sci", name: "과학", color: "#D5C6FF" },
+    { id: "hist", name: "한국사", color: "#FFD6A5" },
+    { id: "etc", name: "기타", color: "#D9D9D9" },
+  ];
+
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function emptyDay() {
+    return { achievement: 0, memo: "", todos: [], blocks: [], updatedAt: 0 };
+  }
+
+  function isDayEmpty(day) {
+    return (
+      !day ||
+      ((day.todos || []).length === 0 &&
+        (day.blocks || []).length === 0 &&
+        !day.memo &&
+        !day.achievement)
+    );
+  }
+
+  function validateBlock(b) {
+    if (!b || typeof b.start !== "number" || typeof b.end !== "number")
+      return { ok: false, error: "시간이 올바르지 않습니다." };
+    if (b.start % dt.SLOT !== 0 || b.end % dt.SLOT !== 0)
+      return { ok: false, error: "시간은 5분 단위여야 합니다." };
+    if (b.end - b.start < dt.SLOT)
+      return { ok: false, error: "블록은 최소 5분이어야 합니다." };
+    if (b.start < dt.DAY_START || b.end > dt.DAY_END)
+      return { ok: false, error: "05:00 ~ 익일 02:00 범위 안에만 만들 수 있습니다." };
+    return { ok: true, error: null };
+  }
+
+  function overlaps(a, b) {
+    return a.start < b.end && b.start < a.end;
+  }
+
+  function findOverlap(blocks, candidate, ignoreId) {
+    for (const b of blocks) {
+      if (ignoreId && b.id === ignoreId) continue;
+      if (b.id === candidate.id) continue;
+      if (overlaps(b, candidate)) return b;
+    }
+    return null;
+  }
+
+  // anchor = 손가락을 처음 댄 지점, cursor = 지금 위치. 둘 다 클램프해서 쓴다.
+  //
+  // 계약:
+  //   1. anchor가 빈 구간에 있으면 (호출부가 항상 보장하는 조건) 결과는 anchor를
+  //      품고, 드래그 방향으로 가장 가까운 블록 경계에서 멈춘다.
+  //   2. anchor가 블록 안에 있으면 (UI에서는 도달 불가한 방어적 경로) 결과를
+  //      그 블록 밖으로, 드래그 방향 쪽으로 밀어낸다. 이때는 anchor를 품지 않는다.
+  //   3. 남는 자리가 없으면 빈 구간(start === end)을 돌려준다. 호출부가 최소 5분
+  //      검사로 걸러낸다.
+  //
+  // 방향을 구간의 중점으로 판정하면 안 된다 — 멀리 드래그할 때 선택이 기존
+  // 블록을 통째로 건너뛴다.
+  function limitRange(blocks, anchor, cursor, ignoreId) {
+    const a = dt.clampToDay(anchor);
+    const c = dt.clampToDay(cursor);
+    let lo = Math.min(a, c);
+    let hi = Math.max(a, c);
+    for (const b of blocks) {
+      if (ignoreId && b.id === ignoreId) continue;
+      if (b.end <= lo || b.start >= hi) continue;
+      if (b.end <= a) lo = Math.max(lo, b.end);          // 블록이 anchor 위쪽
+      else if (b.start >= a) hi = Math.min(hi, b.start); // 블록이 anchor 아래쪽
+      else if (c >= a) lo = Math.max(lo, b.end);         // anchor가 블록 안 + 아래로 끄는 중
+      else hi = Math.min(hi, b.start);                   // anchor가 블록 안 + 위로 끄는 중
+    }
+    if (hi < lo) hi = lo;
+    return { start: lo, end: hi };
+  }
+
+  function sumPlanned(blocks) {
+    return (blocks || []).reduce((sum, b) => sum + (b.end - b.start), 0);
+  }
+
+  function sumDone(blocks) {
+    return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
+  }
+
+  function sanitizeState(raw) {
+    // 저장된 데이터가 아예 없는 첫 실행은 "복구"가 아니다. 구분하지 않으면 앱을 처음
+    // 켠 사용자에게 매번 데이터 손상 경고 배너가 뜬다. fresh일 때는 기본값을 몇 개
+    // 채워 넣든 recovered를 올리지 않는다.
+    const fresh = raw == null;
+    let recovered = false;
+    const mark = () => { if (!fresh) recovered = true; };
+
+    if (fresh || typeof raw !== "object" || Array.isArray(raw)) {
+      mark();
+      raw = {};
+    }
+
+    const version = typeof raw.version === "number" ? raw.version : SCHEMA_VERSION;
+    const readOnly = version > SCHEMA_VERSION;
+    if (typeof raw.version !== "number") mark();
+
+    // 걸러낸 뒤에 기본값을 채운다. 순서를 바꾸면 subjects: [null] 같은 입력이
+    // 빈 과목 목록으로 남아 앱에 과목이 하나도 없게 된다.
+    let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
+    if (!subjects) mark();
+    subjects = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
+
+    const days = {};
+    const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
+    for (const [key, value] of Object.entries(rawDays)) {
+      if (!dt.isValidDateKey(key)) { mark(); continue; }
+      if (!value || typeof value !== "object") { mark(); continue; }
+      const day = emptyDay();
+      day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
+      day.memo = typeof value.memo === "string" ? value.memo : "";
+      day.updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : 0;
+      day.todos = (Array.isArray(value.todos) ? value.todos : []).filter((t) => t && typeof t.text === "string")
+        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!t.done }));
+      const accepted = [];
+      for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
+        const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
+          text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end, done: !!(b && b.done) };
+        if (!validateBlock(block).ok) { mark(); continue; }
+        if (findOverlap(accepted, block)) { mark(); continue; }
+        accepted.push(block);
+      }
+      day.blocks = accepted.sort((a, b) => a.start - b.start);
+      if (isDayEmpty(day)) continue;
+      days[key] = day;
+    }
+
+    const events = (Array.isArray(raw.events) ? raw.events : (mark(), []))
+      .filter((e) => e && typeof e.title === "string" && dt.isValidDateKey(e.startDate))
+      .map((e) => ({
+        id: e.id || newId(), title: e.title, type: e.type || "etc", color: e.color || "#FFA94D",
+        startDate: e.startDate, endDate: dt.isValidDateKey(e.endDate) ? e.endDate : e.startDate,
+        memo: typeof e.memo === "string" ? e.memo : "",
+      }));
+
+    // clipboard는 describeClip이 ⋯ 메뉴를 그릴 때마다 읽는다. 모양이 깨진 값을
+    // 통과시키면 메뉴가 통째로 안 열리고, 앱 안에서 복구할 방법이 없어진다.
+    let clipboard = null;
+    const rawClip = raw.clipboard;
+    if (rawClip && typeof rawClip === "object" && rawClip.payload && typeof rawClip.payload === "object") {
+      if (rawClip.kind === "day" &&
+          Array.isArray(rawClip.payload.todos) && Array.isArray(rawClip.payload.blocks)) {
+        clipboard = rawClip;
+      } else if (rawClip.kind === "week" &&
+                 rawClip.payload.byWeekday && typeof rawClip.payload.byWeekday === "object") {
+        clipboard = rawClip;
+      }
+    }
+    if (raw.clipboard && !clipboard) mark();
+
+    return {
+      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard },
+      recovered,
+      readOnly,
+    };
+  }
+
+  function createStore(storage) {
+    let state = sanitizeState(null).state;
+    let error = null;
+    let readOnly = false;
+
+    function load() {
+      let parsed = null;
+      let corrupt = false;
+      try {
+        const text = storage.getItem(STORAGE_KEY);
+        if (text) parsed = JSON.parse(text);
+      } catch (e) {
+        corrupt = true;
+        try { storage.setItem(STORAGE_KEY + ".corrupt." + Date.now(), storage.getItem(STORAGE_KEY) || ""); } catch (_) {}
+        try { storage.removeItem(STORAGE_KEY); } catch (_) {}
+      }
+      const result = sanitizeState(parsed);
+      state = result.state;
+      readOnly = result.readOnly;
+      return { recovered: corrupt || result.recovered, readOnly };
+    }
+
+    function save() {
+      if (readOnly) return false;
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(state));
+        error = null;
+        return true;
+      } catch (e) {
+        error = e;
+        return false;
+      }
+    }
+
+    function getState() { return state; }
+
+    function getDay(key) {
+      return state.days[key] || emptyDay();
+    }
+
+    function setDay(key, patch) {
+      const next = Object.assign(emptyDay(), state.days[key], patch);
+      next.updatedAt = Date.now();
+      if (isDayEmpty(next)) delete state.days[key];
+      else state.days[key] = next;
+      return next;
+    }
+
+    return { getState, getDay, setDay, save, load, lastError: () => error, isReadOnly: () => readOnly };
+  }
+
+  const api = {
+    STORAGE_KEY, SCHEMA_VERSION, DEFAULT_SUBJECTS,
+    newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
+    limitRange, sumPlanned, sumDone, sanitizeState, createStore,
+  };
+
+  root.SP = root.SP || {};
+  root.SP.store = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
+
+  const FALLBACK_COLOR = "#D9D9D9";
+
+  function find(list, id) {
+    if (!id || !Array.isArray(list)) return null;
+    return list.find((s) => s.id === id) || null;
+  }
+
+  function colorOf(list, id) {
+    const s = find(list, id);
+    return s ? s.color : FALLBACK_COLOR;
+  }
+
+  function nameOf(list, id) {
+    const s = find(list, id);
+    return s ? s.name : "";
+  }
+
+  function countReferences(state, id) {
+    let count = 0;
+    for (const day of Object.values(state.days)) {
+      for (const t of day.todos) if (t.subjectId === id) count++;
+      for (const b of day.blocks) if (b.subjectId === id) count++;
+    }
+    return count;
+  }
+
+  function addSubject(state, name, color) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return null;
+    const created = { id: store.newId(), name: trimmed, color: color || FALLBACK_COLOR };
+    state.settings.subjects.push(created);
+    return created;
+  }
+
+  function updateSubject(state, id, patch) {
+    const s = find(state.settings.subjects, id);
+    if (!s) return false;
+    if (typeof patch.name === "string" && patch.name.trim()) s.name = patch.name.trim();
+    if (typeof patch.color === "string") s.color = patch.color;
+    return true;
+  }
+
+  function removeSubject(state, id) {
+    if (state.settings.subjects.length <= 1) return -1;
+    const index = state.settings.subjects.findIndex((s) => s.id === id);
+    if (index === -1) return -1;
+    state.settings.subjects.splice(index, 1);
+    let affected = 0;
+    for (const day of Object.values(state.days)) {
+      for (const t of day.todos) if (t.subjectId === id) { t.subjectId = null; affected++; }
+      for (const b of day.blocks) if (b.subjectId === id) { b.subjectId = null; affected++; }
+    }
+    return affected;
+  }
+
+  // 과목 선택 드롭다운. 브라우저에서만 쓰이며 Task 8·9·10이 공유한다.
+  function buildSelect(list, selectedId) {
+    const select = document.createElement("select");
+    select.className = "subject-select";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "과목 없음";
+    none.selected = !selectedId;
+    select.appendChild(none);
+    for (const s of list) {
+      const option = document.createElement("option");
+      option.value = s.id;
+      option.textContent = s.name;
+      option.selected = s.id === selectedId;
+      select.appendChild(option);
+    }
+    return select;
+  }
+
+  const api = { FALLBACK_COLOR, find, colorOf, nameOf, countReferences, addSubject, updateSubject, removeSubject, buildSelect };
+
+  root.SP = root.SP || {};
+  root.SP.subjects = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
+  const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
+
+  const EVENT_TYPES = [
+    { id: "assessment", label: "수행평가", color: "#FF8787" },
+    { id: "exam", label: "시험", color: "#748FFC" },
+    { id: "homework", label: "과제", color: "#69DB7C" },
+    { id: "etc", label: "기타", color: "#FFA94D" },
+  ];
+
+  // 달력에 실제로 존재하는 날짜만 통과시킨다. 모양만 맞는 "2026-02-30"을 받아주면
+  // 배지에는 2026-02-30이 뜨는데 D-day는 3월 2일 기준으로 계산되어 조용히 어긋난다.
+  const isDate = (k) => dt.isValidDateKey(k);
+
+  function typeOf(id) {
+    return EVENT_TYPES.find((t) => t.id === id) || EVENT_TYPES[EVENT_TYPES.length - 1];
+  }
+
+  function covers(event, key) {
+    return event.startDate <= key && key <= event.endDate;
+  }
+
+  function onDate(list, key) {
+    return (list || []).filter((e) => covers(e, key)).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }
+
+  function inMonth(list, year, month) {
+    const map = {};
+    const first = year + "-" + String(month).padStart(2, "0") + "-01";
+    const daysInMonth = new Date(year, month, 0).getDate();
+    for (let i = 0; i < daysInMonth; i++) {
+      const key = dt.addDays(first, i);
+      const hits = onDate(list, key);
+      if (hits.length) map[key] = hits;
+    }
+    return map;
+  }
+
+  function nextEvent(list, fromKey) {
+    const upcoming = (list || []).filter((e) => e.startDate >= fromKey);
+    if (upcoming.length === 0) return null;
+    upcoming.sort((a, b) =>
+      a.startDate === b.startDate ? a.title.localeCompare(b.title, "ko") : a.startDate.localeCompare(b.startDate)
+    );
+    return upcoming[0];
+  }
+
+  function dday(list, fromKey) {
+    const event = nextEvent(list, fromKey);
+    if (!event) return null;
+    return { event, days: dt.daysBetween(fromKey, event.startDate) };
+  }
+
+  function formatDday(days) {
+    return days === 0 ? "D-DAY" : "D-" + days;
+  }
+
+  function isPast(event, todayKey) {
+    return event.endDate < todayKey;
+  }
+
+  function addEvent(state, input) {
+    const title = String((input && input.title) || "").trim();
+    if (!title) return null;
+    if (!input || !isDate(input.startDate)) return null;
+    let startDate = input.startDate;
+    let endDate = isDate(input.endDate) ? input.endDate : startDate;
+    if (endDate < startDate) [startDate, endDate] = [endDate, startDate];
+    const type = typeOf(input.type).id;
+    const created = {
+      id: store.newId(), title, type,
+      color: input.color || typeOf(type).color,
+      startDate, endDate,
+      memo: typeof input.memo === "string" ? input.memo : "",
+    };
+    state.events.push(created);
+    return created;
+  }
+
+  function updateEvent(state, id, patch) {
+    const e = state.events.find((x) => x.id === id);
+    if (!e) return false;
+    if (typeof patch.title === "string" && patch.title.trim()) e.title = patch.title.trim();
+    if (patch.type) { e.type = typeOf(patch.type).id; e.color = patch.color || typeOf(e.type).color; }
+    if (typeof patch.color === "string") e.color = patch.color;
+    if (isDate(patch.startDate)) e.startDate = patch.startDate;
+    if (isDate(patch.endDate)) e.endDate = patch.endDate;
+    if (e.endDate < e.startDate) [e.startDate, e.endDate] = [e.endDate, e.startDate];
+    if (typeof patch.memo === "string") e.memo = patch.memo;
+    return true;
+  }
+
+  function removeEvent(state, id) {
+    const index = state.events.findIndex((x) => x.id === id);
+    if (index === -1) return false;
+    state.events.splice(index, 1);
+    return true;
+  }
+
+  const api = { EVENT_TYPES, typeOf, covers, onDate, inMonth, nextEvent, dday, formatDday, isPast, addEvent, updateEvent, removeEvent };
+
+  root.SP = root.SP || {};
+  root.SP.events = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
+  const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
+
+  // 복사본에 done: false를 명시한다. materialize()가 어차피 false로 덮지만,
+  // 페이로드만 봐도 "계획만 복사하고 완료 체크는 가져가지 않는다"가 드러나야 한다.
+  function cloneTodos(todos) {
+    return (todos || []).map((t) => ({ subjectId: t.subjectId || null, text: t.text, done: false }));
+  }
+
+  function cloneBlocks(blocks) {
+    return (blocks || []).map((b) => ({
+      subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
+    }));
+  }
+
+  function materialize(payload) {
+    return {
+      todos: (payload.todos || []).map((t) => ({ id: store.newId(), subjectId: t.subjectId || null, text: t.text, done: false })),
+      blocks: (payload.blocks || []).map((b) => ({
+        id: store.newId(), subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
+      })),
+    };
+  }
+
+  function copyDay(state, key) {
+    const day = state.days[key];
+    if (!day || store.isDayEmpty(day)) return null;
+    if (day.todos.length === 0 && day.blocks.length === 0) return null;
+    return {
+      kind: "day", copiedAt: Date.now(),
+      payload: { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) },
+    };
+  }
+
+  function weekStart(key) {
+    return dt.addDays(key, -dt.weekdayOf(key));
+  }
+
+  function copyWeek(state, anchorKey) {
+    const start = weekStart(anchorKey);
+    const byWeekday = {};
+    let found = false;
+    for (let i = 0; i < 7; i++) {
+      const key = dt.addDays(start, i);
+      const day = state.days[key];
+      if (!day || (day.todos.length === 0 && day.blocks.length === 0)) continue;
+      byWeekday[String(dt.weekdayOf(key))] = { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) };
+      found = true;
+    }
+    if (!found) return null;
+    return { kind: "week", copiedAt: Date.now(), payload: { byWeekday } };
+  }
+
+  function rangeBounds(range, baseKey) {
+    const type = range && range.type;
+    if (type === "day") return [baseKey, baseKey];
+    if (type === "week") {
+      const start = weekStart(baseKey);
+      return [start, dt.addDays(start, 6)];
+    }
+    if (type === "month") {
+      const d = dt.parseDateKey(baseKey);
+      const first = new Date(d.getFullYear(), d.getMonth(), 1);
+      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      return [dt.dateKey(first), dt.dateKey(last)];
+    }
+    if (type === "year") {
+      const y = dt.parseDateKey(baseKey).getFullYear();
+      return [y + "-01-01", y + "-12-31"];
+    }
+    let from = range && range.from ? range.from : baseKey;
+    let to = range && range.to ? range.to : baseKey;
+    if (to < from) [from, to] = [to, from];
+    return [from, to];
+  }
+
+  function allowsWeekday(filter, weekday) {
+    const type = (filter && filter.type) || "all";
+    if (type === "all") return true;
+    if (type === "weekday") return weekday >= 1 && weekday <= 5;
+    if (type === "weekend") return weekday === 0 || weekday === 6;
+    return Array.isArray(filter.days) && filter.days.indexOf(weekday) !== -1;
+  }
+
+  function resolveTargetDates(range, filter, baseKey) {
+    const [from, to] = rangeBounds(range, baseKey);
+    const result = [];
+    let cursor = from;
+    let guard = 0;
+    while (cursor <= to && guard < 4000) {
+      if (allowsWeekday(filter, dt.weekdayOf(cursor))) result.push(cursor);
+      cursor = dt.addDays(cursor, 1);
+      guard++;
+    }
+    return result;
+  }
+
+  function payloadFor(clip, key) {
+    if (clip.kind === "day") return clip.payload;
+    const bucket = clip.payload.byWeekday[String(dt.weekdayOf(key))];
+    return bucket || null;
+  }
+
+  function paste(state, clip, targetKeys, mode) {
+    const result = { applied: 0, skipped: 0, skippedBlocks: 0 };
+    if (!clip || !Array.isArray(targetKeys) || targetKeys.length === 0) return result;
+
+    for (const key of targetKeys) {
+      const payload = payloadFor(clip, key);
+      if (!payload) continue;
+
+      const existing = state.days[key] || store.emptyDay();
+      const hasPlan = existing.todos.length > 0 || existing.blocks.length > 0;
+
+      if (mode === "skip" && hasPlan) { result.skipped++; continue; }
+
+      const fresh = materialize(payload);
+      const next = Object.assign(store.emptyDay(), existing);
+
+      if (mode === "merge") {
+        const blocks = existing.blocks.slice();
+        for (const block of fresh.blocks) {
+          if (store.findOverlap(blocks, block)) { result.skippedBlocks++; continue; }
+          blocks.push(block);
+        }
+        next.blocks = blocks.sort((a, b) => a.start - b.start);
+        next.todos = existing.todos.concat(fresh.todos);
+      } else {
+        next.blocks = fresh.blocks.slice().sort((a, b) => a.start - b.start);
+        next.todos = fresh.todos;
+      }
+
+      next.updatedAt = Date.now();
+      if (store.isDayEmpty(next)) delete state.days[key];
+      else state.days[key] = next;
+      result.applied++;
+    }
+    return result;
+  }
+
+  function describeClip(clip) {
+    if (!clip) return "복사한 계획 없음";
+    if (clip.kind === "day") {
+      const p = clip.payload;
+      return "하루 계획 (할 일 " + p.todos.length + "개, 블록 " + p.blocks.length + "개)";
+    }
+    return "일주일 계획 (" + Object.keys(clip.payload.byWeekday).length + "개 요일)";
+  }
+
+  const api = { copyDay, copyWeek, weekStart, rangeBounds, allowsWeekday, resolveTargetDates, paste, describeClip };
+
+  root.SP = root.SP || {};
+  root.SP.clipboard = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  function el(tag, props, children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(props || {})) {
+      if (key === "class") node.className = value;
+      else if (key === "text") node.textContent = value;
+      else if (key === "dataset") Object.assign(node.dataset, value);
+      else if (key === "style") Object.assign(node.style, value);
+      else if (key.startsWith("on")) node.addEventListener(key.slice(2).toLowerCase(), value);
+      else if (value === true) node.setAttribute(key, "");
+      else if (value !== false && value != null) node.setAttribute(key, value);
+    }
+    for (const child of [].concat(children || [])) {
+      if (child == null || child === false) continue;
+      node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+    }
+    return node;
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+    return node;
+  }
+
+  function closeSheet() {
+    const host = document.getElementById("sheet-root");
+    clear(host);
+    document.body.classList.remove("sheet-open");
+  }
+
+  function openSheet(options) {
+    const host = clear(document.getElementById("sheet-root"));
+    const panel = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" }, [
+      el("div", { class: "sheet-head" }, [
+        el("h2", { class: "sheet-title", text: options.title || "" }),
+        el("button", { class: "icon-btn", "aria-label": "닫기", text: "✕", onclick: closeSheet }),
+      ]),
+      el("div", { class: "sheet-body" }, options.body || []),
+      options.actions ? el("div", { class: "sheet-actions" }, options.actions) : null,
+    ]);
+    host.appendChild(el("div", { class: "scrim", onclick: closeSheet }));
+    host.appendChild(panel);
+    document.body.classList.add("sheet-open");
+    return panel;
+  }
+
+  function toast(message) {
+    const host = document.getElementById("toast-root");
+    const node = el("div", { class: "toast", text: message });
+    host.appendChild(node);
+    setTimeout(() => node.classList.add("toast-out"), 2200);
+    setTimeout(() => node.remove(), 2600);
+  }
+
+  function confirmDialog(message) {
+    return new Promise((resolve) => {
+      openSheet({
+        title: "확인",
+        body: [el("p", { class: "confirm-msg", text: message })],
+        actions: [
+          el("button", { class: "btn btn-ghost", text: "취소", onclick: () => { closeSheet(); resolve(false); } }),
+          el("button", { class: "btn btn-danger", text: "실행", onclick: () => { closeSheet(); resolve(true); } }),
+        ],
+      });
+    });
+  }
+
+  function showBanner(message) {
+    const banner = document.getElementById("banner");
+    banner.textContent = message;
+    banner.hidden = false;
+  }
+
+  const api = { el, clear, openSheet, closeSheet, toast, confirmDialog, showBanner };
+  root.SP = root.SP || {};
+  root.SP.ui = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const subjectsApi = SP.subjects;
+  const eventsApi = SP.events;
+  const clip = SP.clipboard;
+  const ui = SP.ui;
+
+  function afterMutation(onDone) {
+    SP.app.persist();
+    ui.closeSheet();
+    if (onDone) onDone();
+  }
+
+  /* ---------- 일정 ---------- */
+
+  function eventEditor(dateKey, eventId, onDone) {
+    const state = SP.app.state();
+    const existing = eventId ? state.events.find((e) => e.id === eventId) : null;
+
+    const title = ui.el("input", { type: "text", value: existing ? existing.title : "", placeholder: "예: 국어 수행평가", maxlength: "40" });
+    const typeSelect = ui.el("select", { class: "subject-select" },
+      eventsApi.EVENT_TYPES.map((t) =>
+        ui.el("option", { value: t.id, text: t.label, selected: existing ? existing.type === t.id : t.id === "assessment" }))
+    );
+    const startInput = ui.el("input", { type: "date", value: existing ? existing.startDate : dateKey });
+    const endInput = ui.el("input", { type: "date", value: existing ? existing.endDate : dateKey });
+    const memoInput = ui.el("textarea", { placeholder: "메모 (선택)", maxlength: "300" });
+    if (existing) memoInput.value = existing.memo;
+
+    function save() {
+      const payload = {
+        title: title.value, type: typeSelect.value,
+        color: eventsApi.typeOf(typeSelect.value).color,
+        startDate: startInput.value, endDate: endInput.value, memo: memoInput.value,
+      };
+      if (!payload.title.trim()) { ui.toast("제목을 입력하세요."); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.startDate)) { ui.toast("시작일을 선택하세요."); return; }
+      if (existing) eventsApi.updateEvent(state, eventId, payload);
+      else eventsApi.addEvent(state, payload);
+      afterMutation(onDone);
+    }
+
+    ui.openSheet({
+      title: existing ? "일정 수정" : "일정 추가",
+      body: [
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "제목" }), title]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "유형" }), typeSelect]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "시작일" }), startInput]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "종료일 (하루면 시작일과 같게)" }), endInput]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "메모" }), memoInput]),
+      ],
+      actions: [
+        existing
+          ? ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
+              eventsApi.removeEvent(state, eventId); afterMutation(onDone);
+            } })
+          : ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
+        ui.el("button", { class: "btn btn-primary", text: "저장", onclick: save }),
+      ],
+    });
+  }
+
+  /* ---------- 붙여넣기 ---------- */
+
+  function pasteSheet(baseKey, onDone) {
+    const state = SP.app.state();
+    if (!state.clipboard) { ui.toast("먼저 계획을 복사하세요."); return; }
+
+    let range = { type: "day" };
+    let filter = { type: "all" };
+    let mode = "overwrite";
+
+    const customFrom = ui.el("input", { type: "date", value: baseKey });
+    const customTo = ui.el("input", { type: "date", value: baseKey });
+    const customRow = ui.el("div", { class: "custom-range", hidden: true }, [
+      ui.el("label", { class: "field" }, [ui.el("span", { text: "시작" }), customFrom]),
+      ui.el("label", { class: "field" }, [ui.el("span", { text: "끝" }), customTo]),
+    ]);
+
+    const weekdayBoxes = dt.WEEKDAY_NAMES.map((name, i) =>
+      ui.el("label", { class: "wd-chip" }, [
+        ui.el("input", { type: "checkbox", value: String(i), checked: true, onchange: update }),
+        ui.el("span", { text: name }),
+      ])
+    );
+    const weekdayRow = ui.el("div", { class: "wd-row", hidden: true }, weekdayBoxes);
+
+    const preview = ui.el("p", { class: "paste-preview" });
+
+    function currentRange() {
+      if (range.type !== "custom") return range;
+      return { type: "custom", from: customFrom.value || baseKey, to: customTo.value || baseKey };
+    }
+
+    function currentFilter() {
+      if (filter.type !== "custom") return filter;
+      const days = weekdayBoxes
+        .map((box) => (box.querySelector("input").checked ? Number(box.querySelector("input").value) : -1))
+        .filter((n) => n >= 0);
+      return { type: "custom", days };
+    }
+
+    function targets() {
+      return clip.resolveTargetDates(currentRange(), currentFilter(), baseKey);
+    }
+
+    function update() {
+      customRow.hidden = range.type !== "custom";
+      weekdayRow.hidden = filter.type !== "custom";
+      preview.textContent = "총 " + targets().length + "일에 적용됩니다.";
+    }
+
+    function chipGroup(options, getActive, onPick) {
+      const group = ui.el("div", { class: "chip-group" });
+      options.forEach((opt) => {
+        const chip = ui.el("button", {
+          class: "chip", text: opt.label,
+          onclick: () => {
+            onPick(opt.value);
+            [...group.children].forEach((c) => c.classList.remove("chip-on"));
+            chip.classList.add("chip-on");
+            update();
+          },
+        });
+        if (getActive() === opt.value) chip.classList.add("chip-on");
+        group.appendChild(chip);
+      });
+      return group;
+    }
+
+    customFrom.addEventListener("change", update);
+    customTo.addEventListener("change", update);
+
+    ui.openSheet({
+      title: "붙여넣기",
+      body: [
+        ui.el("p", { class: "paste-source", text: clip.describeClip(state.clipboard) }),
+        ui.el("h3", { class: "sheet-sub", text: "범위" }),
+        chipGroup(
+          [
+            { label: "이 날", value: "day" }, { label: "이번 주", value: "week" },
+            { label: "이번 달", value: "month" }, { label: "올해", value: "year" },
+            { label: "직접 선택", value: "custom" },
+          ],
+          () => range.type,
+          (v) => { range = { type: v }; }
+        ),
+        customRow,
+        ui.el("h3", { class: "sheet-sub", text: "요일" }),
+        chipGroup(
+          [
+            { label: "전체", value: "all" }, { label: "평일만", value: "weekday" },
+            { label: "주말만", value: "weekend" }, { label: "직접 선택", value: "custom" },
+          ],
+          () => filter.type,
+          (v) => { filter = { type: v }; }
+        ),
+        weekdayRow,
+        ui.el("h3", { class: "sheet-sub", text: "기존 계획" }),
+        chipGroup(
+          [
+            { label: "덮어쓰기", value: "overwrite" },
+            { label: "겹치지 않는 것만 추가", value: "merge" },
+            { label: "계획 있는 날 건너뛰기", value: "skip" },
+          ],
+          () => mode,
+          (v) => { mode = v; }
+        ),
+        preview,
+      ],
+      actions: [
+        ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
+        ui.el("button", { class: "btn btn-primary", text: "붙여넣기", onclick: () => {
+          const keys = targets();
+          if (keys.length === 0) { ui.toast("대상 날짜가 없습니다."); return; }
+          const result = clip.paste(state, state.clipboard, keys, mode);
+          afterMutation(onDone);
+          const parts = [result.applied + "일 적용"];
+          if (result.skipped) parts.push(result.skipped + "일 건너뜀");
+          if (result.skippedBlocks) parts.push("겹친 블록 " + result.skippedBlocks + "개 제외");
+          ui.toast(parts.join(" · "));
+        } }),
+      ],
+    });
+    update();
+  }
+
+  /* ---------- 하루 메뉴 ---------- */
+
+  function dayMenu(dateKey, onDone) {
+    const state = SP.app.state();
+
+    function copyDay() {
+      const result = clip.copyDay(state, dateKey);
+      if (!result) { ui.toast("복사할 계획이 없습니다."); return; }
+      state.clipboard = result;
+      SP.app.persist();
+      ui.closeSheet();
+      ui.toast("이 날 계획을 복사했습니다.");
+    }
+
+    function copyWeek() {
+      const result = clip.copyWeek(state, dateKey);
+      if (!result) { ui.toast("이 주에 복사할 계획이 없습니다."); return; }
+      state.clipboard = result;
+      SP.app.persist();
+      ui.closeSheet();
+      ui.toast("이 주 계획을 복사했습니다.");
+    }
+
+    async function resetDay() {
+      ui.closeSheet();
+      const ok = await ui.confirmDialog("이 날의 할 일, 시간 블록, 성취도, 메모를 모두 지웁니다.\n일정은 지워지지 않습니다.");
+      if (!ok) return;
+      SP.app.store().setDay(dateKey, { todos: [], blocks: [], achievement: 0, memo: "" });
+      SP.app.persist();
+      if (onDone) onDone();
+      ui.toast("초기화했습니다.");
+    }
+
+    ui.openSheet({
+      title: dt.formatDateKorean(dateKey),
+      body: [
+        ui.el("p", { class: "paste-source", text: clip.describeClip(state.clipboard) }),
+        ui.el("div", { class: "menu" }, [
+          ui.el("button", { class: "menu-item", text: "이 날 복사", onclick: copyDay }),
+          ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
+          ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
+          ui.el("button", { class: "menu-item menu-danger", text: "하루 초기화", onclick: resetDay }),
+        ]),
+      ],
+    });
+  }
+
+  /* ---------- 설정 ---------- */
+
+  function settings(onDone) {
+    const state = SP.app.state();
+
+    function subjectRow(subject) {
+      // 과목을 고치면 시트 아래 화면의 태그 색·이름도 즉시 따라가야 한다.
+      // onDone을 부르지 않으면 다른 화면으로 갔다 돌아올 때까지 옛 색이 남는다.
+      const nameInput = ui.el("input", { type: "text", value: subject.name, maxlength: "12",
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { name: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
+      const colorInput = ui.el("input", { type: "color", value: subject.color,
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { color: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
+      const removeBtn = ui.el("button", { class: "icon-btn", text: "🗑", "aria-label": "삭제", onclick: async () => {
+        const count = subjectsApi.countReferences(state, subject.id);
+        ui.closeSheet();
+        const ok = await ui.confirmDialog(
+          "'" + subject.name + "' 과목을 삭제합니다.\n" +
+          (count > 0 ? count + "개 항목이 '과목 없음'이 됩니다." : "사용 중인 항목은 없습니다."));
+        if (!ok) { settings(onDone); return; }
+        if (subjectsApi.removeSubject(state, subject.id) === -1) ui.toast("마지막 과목은 지울 수 없습니다.");
+        SP.app.persist();
+        if (onDone) onDone();
+        settings(onDone);
+      } });
+      return ui.el("div", { class: "subject-row" }, [colorInput, nameInput, removeBtn]);
+    }
+
+    function exportJson() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = ui.el("a", { href: url, download: "study-planner-" + SP.app.today() + ".json" });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    const fileInput = ui.el("input", { type: "file", accept: "application/json", class: "hidden-file",
+      onchange: (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          let parsed = null;
+          try { parsed = JSON.parse(reader.result); }
+          catch (_) { ui.toast("JSON 파일을 읽을 수 없습니다."); return; }
+          const result = storeApi.sanitizeState(parsed);
+          // 파싱은 됐지만 이 앱의 백업 파일이 아니면 통째로 기본값이 된다. 그대로
+          // 진행하면 학생이 파일을 잘못 골랐을 때 한 학기 기록이 빈 상태로 덮이고
+          // "불러왔습니다"라고 뜬다. 되돌릴 수 없으므로 여기서 막는다.
+          const empty = Object.keys(result.state.days).length === 0 && result.state.events.length === 0;
+          if (result.recovered || empty) {
+            ui.toast("이 앱의 백업 파일이 아닙니다. 불러오지 않았습니다.");
+            return;
+          }
+          ui.closeSheet();
+          const ok = await ui.confirmDialog("현재 기기의 계획을 파일 내용으로 완전히 교체합니다.\n되돌릴 수 없습니다.");
+          if (!ok) { settings(onDone); return; }
+          const target = SP.app.state();
+          target.settings = result.state.settings;
+          target.days = result.state.days;
+          target.events = result.state.events;
+          target.clipboard = result.state.clipboard;
+          SP.app.persist();
+          if (onDone) onDone();
+          ui.toast("불러왔습니다.");
+        };
+        reader.readAsText(file);
+      } });
+
+    ui.openSheet({
+      title: "설정",
+      body: [
+        ui.el("h3", { class: "sheet-sub", text: "과목" }),
+        ui.el("div", { class: "subject-list" }, state.settings.subjects.map(subjectRow)),
+        ui.el("button", { class: "btn add-btn", text: "+ 과목 추가", onclick: () => {
+          subjectsApi.addSubject(state, "새 과목", "#DDDDDD");
+          SP.app.persist();
+          if (onDone) onDone();
+          settings(onDone);
+        } }),
+        ui.el("h3", { class: "sheet-sub", text: "백업" }),
+        ui.el("p", { class: "empty", text: "이 기기에만 저장됩니다. 기기를 바꾸기 전에 반드시 내보내세요." }),
+        ui.el("div", { class: "backup-row" }, [
+          ui.el("button", { class: "btn", text: "JSON 내보내기", onclick: exportJson }),
+          ui.el("button", { class: "btn", text: "JSON 불러오기", onclick: () => fileInput.click() }),
+        ]),
+        fileInput,
+      ],
+    });
+  }
+
+  const api = { dayMenu, eventEditor, pasteSheet, settings };
+  SP.sheets = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const storeApi = SP.store;
+  const subjectsApi = SP.subjects;
+  const ui = SP.ui;
+
+  function openEditor(dateKey, todoId, onDone) {
+    const state = SP.app.state();
+    const day = SP.app.store().getDay(dateKey);
+    const existing = todoId ? day.todos.find((t) => t.id === todoId) : null;
+
+    const select = subjectsApi.buildSelect(state.settings.subjects, existing ? existing.subjectId : null);
+    const input = ui.el("input", { type: "text", value: existing ? existing.text : "", placeholder: "할 일을 입력하세요", maxlength: "80" });
+
+    const save = () => {
+      const text = input.value.trim();
+      if (!text) { ui.toast("할 일을 입력하세요."); return; }
+      const todos = day.todos.slice();
+      if (existing) {
+        const index = todos.findIndex((t) => t.id === todoId);
+        todos[index] = { ...existing, subjectId: select.value || null, text };
+      } else {
+        todos.push({ id: storeApi.newId(), subjectId: select.value || null, text, done: false });
+      }
+      SP.app.store().setDay(dateKey, { todos });
+      SP.app.persist();
+      ui.closeSheet();
+      onDone();
+    };
+
+    ui.openSheet({
+      title: existing ? "할 일 수정" : "할 일 추가",
+      body: [
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), input]),
+      ],
+      actions: [
+        existing
+          ? ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
+              SP.app.store().setDay(dateKey, { todos: day.todos.filter((t) => t.id !== todoId) });
+              SP.app.persist(); ui.closeSheet(); onDone();
+            } })
+          : ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
+        ui.el("button", { class: "btn btn-primary", text: "저장", onclick: save }),
+      ],
+    });
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function move(dateKey, todoId, delta, onChange) {
+    const day = SP.app.store().getDay(dateKey);
+    const todos = day.todos.slice();
+    const index = todos.findIndex((t) => t.id === todoId);
+    const target = index + delta;
+    if (index === -1 || target < 0 || target >= todos.length) return;
+    [todos[index], todos[target]] = [todos[target], todos[index]];
+    SP.app.store().setDay(dateKey, { todos });
+    SP.app.persist();
+    onChange();
+  }
+
+  function render(host, dateKey, onChange) {
+    const state = SP.app.state();
+    const day = SP.app.store().getDay(dateKey);
+    const subjects = state.settings.subjects;
+
+    const rows = day.todos.map((todo, index) =>
+      ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
+        ui.el("span", {
+          class: "todo-tag",
+          text: subjectsApi.nameOf(subjects, todo.subjectId) || "-",
+          style: { background: subjectsApi.colorOf(subjects, todo.subjectId) },
+        }),
+        ui.el("button", { class: "todo-text", text: todo.text, onclick: () => openEditor(dateKey, todo.id, onChange) }),
+        ui.el("div", { class: "todo-order" }, [
+          ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
+          ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
+        ]),
+        ui.el("label", { class: "todo-check-hit" }, [
+          ui.el("input", {
+            type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
+            onchange: (e) => {
+              const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
+              SP.app.store().setDay(dateKey, { todos });
+              SP.app.persist();
+              onChange();
+            },
+          }),
+        ]),
+      ])
+    );
+
+    ui.clear(host).appendChild(
+      ui.el("section", { class: "card" }, [
+        ui.el("h2", { class: "card-title", text: "To-Do List" }),
+        day.todos.length
+          ? ui.el("ul", { class: "todo-list" }, rows)
+          : ui.el("p", { class: "empty", text: "할 일이 없습니다. 아래 버튼으로 추가하세요." }),
+        ui.el("button", { class: "btn add-btn", text: "+ 할 일 추가", onclick: () => openEditor(dateKey, null, onChange) }),
+      ])
+    );
+  }
+
+  const api = { render, openEditor };
+  SP.todos = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const subjectsApi = SP.subjects;
+  const ui = SP.ui;
+
+  const HOUR_PX = 56;
+  const SPAN = dt.DAY_END - dt.DAY_START;
+  const LONG_PRESS_MS = 300;
+  const MOVE_TOLERANCE = 8;
+
+  function yToMinutes(clientY, trackEl) {
+    const rect = trackEl.getBoundingClientRect();
+    const ratio = (clientY - rect.top) / rect.height;
+    return dt.clampToDay(dt.snapToSlot(dt.DAY_START + ratio * SPAN));
+  }
+
+  function pct(minutes) {
+    return ((minutes - dt.DAY_START) / SPAN) * 100;
+  }
+
+  function blocksOf(dateKey) {
+    return SP.app.store().getDay(dateKey).blocks;
+  }
+
+  function saveBlocks(dateKey, blocks) {
+    SP.app.store().setDay(dateKey, { blocks: blocks.slice().sort((a, b) => a.start - b.start) });
+    SP.app.persist();
+  }
+
+  function openBlockEditor(dateKey, blockId, onChange) {
+    const state = SP.app.state();
+    const blocks = blocksOf(dateKey);
+    const block = blocks.find((b) => b.id === blockId);
+    if (!block) return;
+
+    let start = block.start;
+    let end = block.end;
+
+    const rangeLabel = ui.el("strong", { text: dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end) });
+    const durationLabel = ui.el("span", { class: "editor-duration", text: dt.formatDuration(end - start) });
+
+    function redraw() {
+      rangeLabel.textContent = dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end);
+      durationLabel.textContent = dt.formatDuration(end - start);
+    }
+
+    function nudge(which, delta) {
+      const next = { ...block, start, end };
+      if (which === "start") next.start = dt.clampToDay(start + delta);
+      else next.end = dt.clampToDay(end + delta);
+      if (next.end - next.start < dt.SLOT) { ui.toast("블록은 최소 5분이어야 합니다."); return; }
+      if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
+      start = next.start; end = next.end;
+      redraw();
+    }
+
+    const stepper = (label, which) =>
+      ui.el("div", { class: "stepper" }, [
+        ui.el("span", { class: "stepper-label", text: label }),
+        ui.el("button", { class: "btn stepper-btn", text: "−5분", onclick: () => nudge(which, -dt.SLOT) }),
+        ui.el("button", { class: "btn stepper-btn", text: "+5분", onclick: () => nudge(which, dt.SLOT) }),
+      ]);
+
+    const select = subjectsApi.buildSelect(state.settings.subjects, block.subjectId);
+    const textInput = ui.el("input", { type: "text", value: block.text, placeholder: "무엇을 공부하나요?", maxlength: "40" });
+    // 30분 블록도 트랙에서는 28px밖에 안 된다. 짧은 블록의 ✓를 손가락으로 정확히
+    // 누르기는 어려우므로, 편집 시트에서도 완료를 바꿀 수 있어야 한다.
+    const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
+
+    ui.openSheet({
+      title: "시간 블록",
+      body: [
+        ui.el("div", { class: "editor-range" }, [rangeLabel, durationLabel]),
+        stepper("시작", "start"),
+        stepper("종료", "end"),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "내용" }), textInput]),
+        ui.el("label", { class: "editor-done" }, [doneInput, ui.el("span", { text: "이 시간 공부 완료" })]),
+      ],
+      actions: [
+        ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
+          saveBlocks(dateKey, blocks.filter((b) => b.id !== blockId));
+          ui.closeSheet(); onChange();
+        } }),
+        ui.el("button", { class: "btn btn-primary", text: "저장", onclick: () => {
+          const next = { ...block, start, end, subjectId: select.value || null,
+            text: textInput.value.trim(), done: doneInput.checked };
+          const check = storeApi.validateBlock(next);
+          if (!check.ok) { ui.toast(check.error); return; }
+          if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
+          saveBlocks(dateKey, blocks.map((b) => (b.id === blockId ? next : b)));
+          ui.closeSheet(); onChange();
+        } }),
+      ],
+    });
+  }
+
+  function attachCreateDrag(track, dateKey, onChange) {
+    let timer = null;
+    let active = false;
+    let anchor = 0;
+    let ghost = null;
+    let startY = 0;
+    let pointerId = null;
+
+    function cleanup() {
+      clearTimeout(timer); timer = null;
+      if (ghost) { ghost.remove(); ghost = null; }
+      if (active && pointerId != null && track.hasPointerCapture(pointerId)) {
+        track.releasePointerCapture(pointerId);
+      }
+      // 드래그 중에만 스크롤을 막는다. 평소에는 세로 스크롤이 되어야 한다.
+      track.style.touchAction = "";
+      active = false;
+      pointerId = null;
+    }
+
+    function drawGhost(start, end) {
+      if (!ghost) {
+        ghost = ui.el("div", { class: "tt-ghost" }, [ui.el("span", { class: "tt-ghost-label" })]);
+        track.appendChild(ghost);
+      }
+      ghost.style.top = pct(start) + "%";
+      ghost.style.height = ((end - start) / SPAN) * 100 + "%";
+      ghost.firstChild.textContent = dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end);
+    }
+
+    track.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".tt-block")) return;
+      pointerId = e.pointerId;
+      startY = e.clientY;
+      anchor = yToMinutes(e.clientY, track);
+      timer = setTimeout(() => {
+        active = true;
+        track.style.touchAction = "none";
+        track.setPointerCapture(pointerId);
+        drawGhost(anchor, Math.min(dt.DAY_END, anchor + dt.SLOT));
+      }, LONG_PRESS_MS);
+    });
+
+    track.addEventListener("pointermove", (e) => {
+      if (!active) {
+        if (timer && Math.abs(e.clientY - startY) > MOVE_TOLERANCE) { clearTimeout(timer); timer = null; }
+        return;
+      }
+      e.preventDefault();
+      const cursor = yToMinutes(e.clientY, track);
+      const limited = storeApi.limitRange(blocksOf(dateKey), anchor, cursor);
+      drawGhost(limited.start, Math.max(limited.start + dt.SLOT, limited.end));
+    });
+
+    function finish(e) {
+      if (!active) { clearTimeout(timer); timer = null; return; }
+      const cursor = yToMinutes(e.clientY, track);
+      const limited = storeApi.limitRange(blocksOf(dateKey), anchor, cursor);
+      let start = limited.start;
+      let end = Math.max(limited.start + dt.SLOT, limited.end);
+      if (end > dt.DAY_END) { end = dt.DAY_END; start = Math.min(start, end - dt.SLOT); }
+      cleanup();
+
+      const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false };
+      const check = storeApi.validateBlock(candidate);
+      if (!check.ok) { ui.toast(check.error); return; }
+      if (storeApi.findOverlap(blocksOf(dateKey), candidate)) { ui.toast("다른 블록과 겹칩니다."); return; }
+
+      const blocks = blocksOf(dateKey).concat([candidate]);
+      saveBlocks(dateKey, blocks);
+      onChange();
+      openBlockEditorOrRollback(dateKey, candidate.id, onChange);
+    }
+
+    track.addEventListener("pointerup", finish);
+    track.addEventListener("pointercancel", () => cleanup());
+  }
+
+  // 새로 만든 블록의 편집 시트를 취소로 닫으면 그 빈 블록을 되돌린다.
+  function openBlockEditorOrRollback(dateKey, blockId, onChange) {
+    const before = blocksOf(dateKey).find((b) => b.id === blockId);
+    let committed = false;
+    openBlockEditor(dateKey, blockId, () => { committed = true; onChange(); });
+    const host = document.getElementById("sheet-root");
+    const observer = new MutationObserver(() => {
+      if (host.childElementCount === 0) {
+        observer.disconnect();
+        if (!committed && before && !before.text && !before.subjectId) {
+          saveBlocks(dateKey, blocksOf(dateKey).filter((b) => b.id !== blockId));
+          onChange();
+        }
+      }
+    });
+    observer.observe(host, { childList: true });
+  }
+
+  function attachResize(handle, dateKey, blockId, edge, onChange) {
+    handle.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      const track = handle.closest(".tt-track");
+      handle.setPointerCapture(e.pointerId);
+      const block = blocksOf(dateKey).find((b) => b.id === blockId);
+      if (!block) return;
+
+      function onMove(ev) {
+        ev.preventDefault();
+        const cursor = yToMinutes(ev.clientY, track);
+        const anchor = edge === "start" ? block.end : block.start;
+        const limited = storeApi.limitRange(blocksOf(dateKey), anchor, cursor, blockId);
+        const start = Math.min(limited.start, limited.end);
+        const end = Math.max(limited.start, limited.end);
+        if (end - start < dt.SLOT) return;
+        const node = handle.parentElement;
+        node.style.top = pct(start) + "%";
+        node.style.height = ((end - start) / SPAN) * 100 + "%";
+        node.dataset.start = start;
+        node.dataset.end = end;
+      }
+
+      function onUp() {
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        const node = handle.parentElement;
+        const start = Number(node.dataset.start);
+        const end = Number(node.dataset.end);
+        if (!Number.isFinite(start) || !Number.isFinite(end) || (start === block.start && end === block.end)) { onChange(); return; }
+        const next = { ...block, start, end };
+        if (!storeApi.validateBlock(next).ok || storeApi.findOverlap(blocksOf(dateKey), next, blockId)) {
+          ui.toast("여기에는 놓을 수 없습니다."); onChange(); return;
+        }
+        saveBlocks(dateKey, blocksOf(dateKey).map((b) => (b.id === blockId ? next : b)));
+        onChange();
+      }
+
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function blockNode(dateKey, block, subjects, onChange) {
+    const color = subjectsApi.colorOf(subjects, block.subjectId);
+    const label = [subjectsApi.nameOf(subjects, block.subjectId), block.text].filter(Boolean).join(" · ") || "이름 없음";
+
+    const node = ui.el("div", {
+      class: "tt-block" + (block.done ? " tt-block-done" : ""),
+      dataset: { id: block.id, start: block.start, end: block.end },
+      style: { top: pct(block.start) + "%", height: ((block.end - block.start) / SPAN) * 100 + "%", background: color },
+    }, [
+      ui.el("button", {
+        class: "tt-check", "aria-label": "완료 토글", text: block.done ? "✓" : "",
+        onclick: (e) => {
+          e.stopPropagation();
+          saveBlocks(dateKey, blocksOf(dateKey).map((b) => (b.id === block.id ? { ...b, done: !b.done } : b)));
+          onChange();
+        },
+      }),
+      ui.el("button", {
+        class: "tt-body", onclick: () => openBlockEditor(dateKey, block.id, onChange),
+      }, [
+        ui.el("span", { class: "tt-label", text: label }),
+        ui.el("span", { class: "tt-time", text: dt.minutesToLabel(block.start) + "~" + dt.minutesToLabel(block.end) }),
+      ]),
+      ui.el("div", { class: "tt-handle tt-handle-top", "aria-hidden": "true" }),
+      ui.el("div", { class: "tt-handle tt-handle-bottom", "aria-hidden": "true" }),
+    ]);
+
+    attachResize(node.querySelector(".tt-handle-top"), dateKey, block.id, "start", onChange);
+    attachResize(node.querySelector(".tt-handle-bottom"), dateKey, block.id, "end", onChange);
+    return node;
+  }
+
+  function nowLine(dateKey) {
+    if (dateKey !== SP.app.today()) return null;
+    const now = new Date();
+    let minutes = now.getHours() * 60 + now.getMinutes();
+    if (now.getHours() < dt.DAY_BOUNDARY_HOUR) minutes += 1440;
+    if (minutes < dt.DAY_START || minutes > dt.DAY_END) return null;
+    return ui.el("div", { class: "tt-now", style: { top: pct(minutes) + "%" } });
+  }
+
+  function render(host, dateKey, onChange) {
+    const subjects = SP.app.state().settings.subjects;
+    const blocks = blocksOf(dateKey);
+
+    const hours = [];
+    for (let m = dt.DAY_START; m <= dt.DAY_END; m += 60) {
+      hours.push(ui.el("div", { class: "tt-hour", style: { top: pct(m) + "%" } }, [
+        ui.el("span", { class: "tt-hour-label", text: dt.minutesToLabel(m) }),
+      ]));
+    }
+    const ticks = [];
+    for (let m = dt.DAY_START; m <= dt.DAY_END; m += dt.SLOT) {
+      if (m % 60 === 0) continue;
+      ticks.push(ui.el("div", { class: "tt-tick" + (m % 30 === 0 ? " tt-tick-half" : ""), style: { top: pct(m) + "%" } }));
+    }
+
+    const track = ui.el("div", { class: "tt-track", style: { height: (SPAN / 60) * HOUR_PX + "px" } },
+      ticks.concat(hours, blocks.map((b) => blockNode(dateKey, b, subjects, onChange)), [nowLine(dateKey)].filter(Boolean))
+    );
+    attachCreateDrag(track, dateKey, onChange);
+
+    ui.clear(host).appendChild(
+      ui.el("section", { class: "card" }, [
+        ui.el("h2", { class: "card-title", text: "Timetable" }),
+        ui.el("p", { class: "empty", text: "빈 곳을 길게 눌러 아래로 끌면 블록이 만들어집니다. 블록을 누르면 수정됩니다." }),
+        track,
+      ])
+    );
+  }
+
+  const api = { render, yToMinutes, openBlockEditor, HOUR_PX };
+  SP.timetable = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const eventsApi = SP.events;
+  const ui = SP.ui;
+
+  let currentHost = null;
+  let currentKey = null;
+
+  function ddayChip(dateKey) {
+    const state = SP.app.state();
+    const result = eventsApi.dday(state.events, dateKey);
+    if (!result) return ui.el("span", { class: "dday dday-none", text: "일정 없음" });
+    return ui.el("span", { class: "dday", title: result.event.title, text: eventsApi.formatDday(result.days) });
+  }
+
+  function header(dateKey) {
+    const view = SP.app.viewDate();
+    return ui.el("header", { class: "day-head" }, [
+      ui.el("button", { class: "icon-btn", text: "←", "aria-label": "달력으로", onclick: () => SP.app.showCalendar(view.year, view.month) }),
+      ddayChip(dateKey),
+      ui.el("div", { class: "day-nav" }, [
+        ui.el("button", { class: "icon-btn", text: "‹", "aria-label": "전날", onclick: () => SP.app.showDay(dt.addDays(dateKey, -1)) }),
+        ui.el("span", { class: "day-date", text: dt.formatDateKorean(dateKey) }),
+        ui.el("button", { class: "icon-btn", text: "›", "aria-label": "다음날", onclick: () => SP.app.showDay(dt.addDays(dateKey, 1)) }),
+      ]),
+      ui.el("button", { class: "icon-btn", text: "⋯", "aria-label": "메뉴", onclick: () => SP.day.openMenu(dateKey) }),
+    ]);
+  }
+
+  function achievementCard(dateKey) {
+    const day = SP.app.store().getDay(dateKey);
+    const value = ui.el("span", { class: "achieve-value", text: day.achievement + "%" });
+    const slider = ui.el("input", {
+      type: "range", min: "0", max: "100", step: "5", value: String(day.achievement), class: "achieve-slider",
+      oninput: (e) => { value.textContent = e.target.value + "%"; },
+      onchange: (e) => {
+        SP.app.store().setDay(dateKey, { achievement: Number(e.target.value) });
+        SP.app.persist();
+      },
+    });
+    return ui.el("section", { class: "card" }, [
+      ui.el("div", { class: "achieve-head" }, [ui.el("h2", { class: "card-title", text: "학습 성취도" }), value]),
+      slider,
+      ui.el("div", { class: "achieve-scale" }, [
+        ui.el("span", { text: "0%" }), ui.el("span", { text: "50%" }), ui.el("span", { text: "100%" }),
+      ]),
+    ]);
+  }
+
+  function eventsCard(dateKey) {
+    const list = eventsApi.onDate(SP.app.state().events, dateKey);
+    if (list.length === 0) return null;
+    return ui.el("section", { class: "card" }, [
+      ui.el("h2", { class: "card-title", text: "오늘의 일정" }),
+      ui.el("ul", { class: "event-list" }, list.map((e) =>
+        ui.el("li", { class: "event-item", onclick: () => SP.day.openEventEditor(dateKey, e.id) }, [
+          ui.el("span", { class: "event-dot", style: { background: e.color } }),
+          ui.el("span", { class: "event-title", text: e.title }),
+          ui.el("span", { class: "event-type", text: eventsApi.typeOf(e.type).label }),
+        ])
+      )),
+    ]);
+  }
+
+  function totalsCard(dateKey) {
+    const day = SP.app.store().getDay(dateKey);
+    const planned = storeApi.sumPlanned(day.blocks);
+    const done = storeApi.sumDone(day.blocks);
+    const ratio = planned > 0 ? Math.round((done / planned) * 100) : 0;
+    return ui.el("section", { class: "card totals" }, [
+      ui.el("div", { class: "totals-row" }, [
+        ui.el("span", { class: "totals-label", text: "목표시간" }),
+        ui.el("strong", { text: dt.formatDuration(planned) }),
+      ]),
+      ui.el("div", { class: "totals-row" }, [
+        ui.el("span", { class: "totals-label", text: "실제시간" }),
+        ui.el("strong", { text: dt.formatDuration(done) }),
+      ]),
+      ui.el("div", { class: "totals-bar" }, [
+        ui.el("div", { class: "totals-fill", style: { width: Math.min(100, ratio) + "%" } }),
+      ]),
+      ui.el("div", { class: "totals-ratio", text: "달성률 " + ratio + "%" }),
+    ]);
+  }
+
+  function memoCard(dateKey) {
+    const day = SP.app.store().getDay(dateKey);
+    return ui.el("section", { class: "card" }, [
+      ui.el("h2", { class: "card-title", text: "메모" }),
+      ui.el("textarea", {
+        class: "memo", placeholder: "자유롭게 적으세요", maxlength: "1000",
+        // change(블러)만 듣지 말 것. 메모에는 저장 버튼이 없어서, 타이핑하다 바로
+        // 앱을 내리면 포커스가 빠지지 않아 flush에 담길 내용 자체가 없다.
+        // persist()의 300ms 디바운스가 타이핑 연타를 흡수한다.
+        oninput: (e) => { SP.app.store().setDay(dateKey, { memo: e.target.value }); SP.app.persist(); },
+      }),
+    ]);
+  }
+
+  function render(host, dateKey) {
+    currentHost = host;
+    currentKey = dateKey;
+
+    const todoHost = ui.el("div", {});
+    const timetableHost = ui.el("div", {});
+    const totalsHost = ui.el("div", {});
+
+    const refreshTotals = () => { ui.clear(totalsHost).appendChild(totalsCard(dateKey)); };
+    const onTodoChange = () => { SP.todos.render(todoHost, dateKey, onTodoChange); };
+    const onBlockChange = () => { SP.timetable.render(timetableHost, dateKey, onBlockChange); refreshTotals(); };
+
+    ui.clear(host).appendChild(
+      ui.el("div", { class: "day" }, [
+        header(dateKey),
+        achievementCard(dateKey),
+        eventsCard(dateKey),
+        todoHost,
+        timetableHost,
+        totalsHost,
+        memoCard(dateKey),
+      ])
+    );
+
+    const memo = host.querySelector(".memo");
+    if (memo) memo.value = SP.app.store().getDay(dateKey).memo;
+
+    SP.todos.render(todoHost, dateKey, onTodoChange);
+    if (SP.timetable.render) SP.timetable.render(timetableHost, dateKey, onBlockChange);
+    refreshTotals();
+  }
+
+  function refresh() {
+    if (currentHost && currentKey) render(currentHost, currentKey);
+  }
+
+  const api = {
+    render, refresh, currentKey: () => currentKey,
+    openMenu: (dateKey) => SP.sheets.dayMenu(dateKey, refresh),
+    openEventEditor: (dateKey, eventId) => SP.sheets.eventEditor(dateKey, eventId, refresh),
+  };
+  SP.day = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const eventsApi = SP.events;
+  const ui = SP.ui;
+
+  const LONG_PRESS_MS = 450;
+  const MOVE_TOLERANCE = 8;
+
+  function monthDays(year, month) {
+    return new Date(year, month, 0).getDate();
+  }
+
+  function studyMinutesByDay(state, year, month) {
+    const map = {};
+    let max = 0;
+    const first = year + "-" + String(month).padStart(2, "0") + "-01";
+    for (let i = 0; i < monthDays(year, month); i++) {
+      const key = dt.addDays(first, i);
+      const day = state.days[key];
+      if (!day) continue;
+      const minutes = storeApi.sumDone(day.blocks);
+      if (minutes > 0) map[key] = minutes;
+      if (minutes > max) max = minutes;
+    }
+    return { map, max };
+  }
+
+  function monthSummary(state, year, month) {
+    const first = year + "-" + String(month).padStart(2, "0") + "-01";
+    let total = 0;
+    let achievementSum = 0;
+    let achievementDays = 0;
+    for (let i = 0; i < monthDays(year, month); i++) {
+      const day = state.days[dt.addDays(first, i)];
+      if (!day) continue;
+      total += storeApi.sumDone(day.blocks);
+      if (day.achievement > 0) { achievementSum += day.achievement; achievementDays++; }
+    }
+    const avg = achievementDays ? Math.round(achievementSum / achievementDays) : 0;
+    return { total, avg };
+  }
+
+  function attachLongPress(node, dateKey) {
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let fired = false;
+    let moved = false;
+
+    const cancel = () => { clearTimeout(timer); timer = null; };
+
+    node.addEventListener("pointerdown", (e) => {
+      fired = false;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      timer = setTimeout(() => { fired = true; api.onLongPress(dateKey); }, LONG_PRESS_MS);
+    });
+    node.addEventListener("pointermove", (e) => {
+      if (moved) return;
+      if (Math.abs(e.clientY - startY) > MOVE_TOLERANCE ||
+          Math.abs(e.clientX - startX) > MOVE_TOLERANCE) {
+        moved = true;
+        cancel();
+      }
+    });
+    node.addEventListener("pointerup", () => {
+      cancel();
+      // 드래그로 끝났으면 날짜를 열지 않는다. touch-action: pan-y는 터치에만 걸리므로
+      // 마우스로 끌었다 놓으면 pointercancel이 오지 않는다. moved가 유일한 방어선이다.
+      if (!fired && !moved) SP.app.showDay(dateKey);
+    });
+    node.addEventListener("pointercancel", cancel);
+    node.addEventListener("pointerleave", cancel);
+    node.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
+  function dayCell(key, inMonthFlag, ctx) {
+    if (!inMonthFlag) return ui.el("div", { class: "cal-cell cal-cell-out" });
+
+    const weekday = dt.weekdayOf(key);
+    const classes = ["cal-cell"];
+    if (weekday === 0) classes.push("cal-sun");
+    if (weekday === 6) classes.push("cal-sat");
+    if (key === SP.app.today()) classes.push("cal-today");
+
+    const dayEvents = ctx.eventMap[key] || [];
+    const badges = dayEvents.slice(0, 2).map((e) =>
+      ui.el("div", { class: "cal-badge", title: e.title }, [
+        ui.el("span", { class: "cal-dot", style: { background: e.color } }),
+        ui.el("span", { class: "cal-badge-text", text: e.title }),
+      ])
+    );
+    if (dayEvents.length > 2) badges.push(ui.el("div", { class: "cal-more", text: "+" + (dayEvents.length - 2) }));
+
+    const minutes = ctx.study.map[key] || 0;
+    const ratio = ctx.study.max > 0 ? minutes / ctx.study.max : 0;
+    const bar = ctx.study.max > 0 && minutes > 0
+      ? ui.el("div", { class: "cal-bar" }, [
+          ui.el("div", { class: "cal-bar-fill", style: { width: Math.round(ratio * 100) + "%" } }),
+        ])
+      : null;
+
+    const day = ctx.state.days[key];
+    const achievement = day && day.achievement > 0
+      ? ui.el("div", { class: "cal-achieve", text: day.achievement + "%" })
+      : null;
+
+    const cell = ui.el("div", { class: classes.join(" "), dataset: { date: key } }, [
+      ui.el("div", { class: "cal-num", text: String(dt.parseDateKey(key).getDate()) }),
+      ui.el("div", { class: "cal-badges" }, badges),
+      bar,
+      achievement,
+    ]);
+    attachLongPress(cell, key);
+    return cell;
+  }
+
+  function render(host, year, month) {
+    const state = SP.app.state();
+    const ctx = {
+      state,
+      eventMap: eventsApi.inMonth(state.events, year, month),
+      study: studyMinutesByDay(state, year, month),
+    };
+
+    const first = year + "-" + String(month).padStart(2, "0") + "-01";
+    const leading = dt.weekdayOf(first);
+    const total = monthDays(year, month);
+    const cells = [];
+    for (let i = 0; i < leading; i++) cells.push(dayCell(null, false, ctx));
+    for (let i = 0; i < total; i++) cells.push(dayCell(dt.addDays(first, i), true, ctx));
+    while (cells.length % 7 !== 0) cells.push(dayCell(null, false, ctx));
+
+    const go = (delta) => {
+      const d = new Date(year, month - 1 + delta, 1);
+      SP.app.showCalendar(d.getFullYear(), d.getMonth() + 1);
+    };
+    const goToday = () => {
+      const t = dt.parseDateKey(SP.app.today());
+      SP.app.showCalendar(t.getFullYear(), t.getMonth() + 1);
+    };
+
+    const summary = monthSummary(state, year, month);
+
+    ui.clear(host).appendChild(
+      ui.el("div", { class: "cal" }, [
+        ui.el("header", { class: "cal-head" }, [
+          ui.el("button", { class: "icon-btn", text: "‹", "aria-label": "이전 달", onclick: () => go(-1) }),
+          ui.el("h1", { class: "cal-title", text: year + "년 " + month + "월" }),
+          ui.el("button", { class: "icon-btn", text: "›", "aria-label": "다음 달", onclick: () => go(1) }),
+          ui.el("button", { class: "btn btn-ghost cal-today-btn", text: "오늘", onclick: goToday }),
+        ]),
+        ui.el("div", { class: "cal-weekdays" }, dt.WEEKDAY_NAMES.map((name, i) =>
+          ui.el("div", { class: "cal-weekday" + (i === 0 ? " cal-sun" : i === 6 ? " cal-sat" : ""), text: name })
+        )),
+        ui.el("div", { class: "cal-grid" }, cells),
+        ui.el("div", { class: "cal-summary" }, [
+          ui.el("span", { text: "이번 달 공부 " + dt.formatDuration(summary.total) }),
+          ui.el("span", { text: "평균 달성도 " + summary.avg + "%" }),
+        ]),
+      ])
+    );
+  }
+
+  function onLongPress(dateKey) {
+    SP.sheets.dayMenu(dateKey, () => SP.app.showCalendar(SP.app.viewDate().year, SP.app.viewDate().month));
+  }
+
+  const api = { render, onLongPress, monthSummary, studyMinutesByDay };
+  SP.calendar = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const ui = SP.ui;
+
+  let store = null;
+  let todayKey = null;
+  let view = { year: 0, month: 0 };
+  let saveTimer = null;
+
+  function safeStorage() {
+    try {
+      const probe = "__sp_probe__";
+      window.localStorage.setItem(probe, "1");
+      window.localStorage.removeItem(probe);
+      return window.localStorage;
+    } catch (e) {
+      const map = new Map();
+      return {
+        getItem: (k) => (map.has(k) ? map.get(k) : null),
+        setItem: () => { throw new Error("localStorage unavailable"); },
+        removeItem: (k) => map.delete(k),
+      };
+    }
+  }
+
+  function state() { return store.getState(); }
+
+  function writeNow() {
+    if (!store.save()) {
+      ui.showBanner("저장에 실패했습니다. 이 기기에 계획이 남지 않습니다. 설정에서 JSON 내보내기로 백업하세요.");
+    }
+  }
+
+  function persist() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 300);
+  }
+
+  // 디바운스 대기 중인 쓰기를 즉시 밀어 넣는다. 폰에서 체크 하나 하고 곧바로 앱을
+  // 내리거나 화면을 끄면 300ms를 못 채우고 그 편집이 통째로 사라진다.
+  function flush() {
+    if (saveTimer === null) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    writeNow();
+  }
+
+  function today() { return todayKey; }
+  function viewDate() { return { year: view.year, month: view.month }; }
+
+  function showCalendar(year, month) {
+    if (year) view = { year, month };
+    document.getElementById("screen-day").hidden = true;
+    document.getElementById("screen-calendar").hidden = false;
+    window.scrollTo(0, 0);
+    SP.calendar.render(document.getElementById("screen-calendar"), view.year, view.month);
+  }
+
+  function showDay(dateKey) {
+    document.getElementById("screen-calendar").hidden = true;
+    document.getElementById("screen-day").hidden = false;
+    window.scrollTo(0, 0);
+    SP.day.render(document.getElementById("screen-day"), dateKey);
+  }
+
+  function refreshToday() {
+    const next = dt.plannerDateKey(new Date());
+    if (next === todayKey) return;
+    todayKey = next;
+    if (!document.getElementById("screen-calendar").hidden) showCalendar(view.year, view.month);
+  }
+
+  function boot() {
+    store = storeApi.createStore(safeStorage());
+    const result = store.load();
+    if (result.recovered) ui.showBanner("저장된 데이터 일부를 읽을 수 없어 복구했습니다.");
+    if (result.readOnly) ui.showBanner("더 새로운 버전에서 만든 데이터입니다. 읽기 전용으로 엽니다.");
+
+    todayKey = dt.plannerDateKey(new Date());
+    const d = dt.parseDateKey(todayKey);
+    view = { year: d.getFullYear(), month: d.getMonth() + 1 };
+
+    showCalendar(view.year, view.month);
+
+    setInterval(refreshToday, 60000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) flush();
+      else refreshToday();
+    });
+    // iOS Safari에서는 beforeunload가 신뢰할 수 없다. pagehide가 홈 화면 앱에서도 온다.
+    window.addEventListener("pagehide", flush);
+  }
+
+  SP.app = { boot, state, persist, showCalendar, showDay, today, viewDate, store: () => store };
+  document.addEventListener("DOMContentLoaded", boot);
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>

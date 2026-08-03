@@ -21,3 +21,12 @@
 
 - 설계: `docs/superpowers/specs/2026-08-02-study-planner-design.md`
 - 구현 계획: `docs/superpowers/plans/2026-08-02-study-planner.md`
+
+## 배포
+
+`node build-artifact.js` 는 `dist/planner.html` 에서 문서 골격을 벗겨
+`dist/planner-artifact.html` 을 만든다. Artifact 는 올린 파일을 자기 문서 안에
+감싸기 때문에, 완전한 HTML 문서를 그대로 올리면 태그가 중첩되어 깨진다.
+
+`<head>` 의 meta 는 본문에서 무시되므로 런타임에 심는 스크립트를 함께 넣는다.
+특히 viewport 가 없으면 폰에서 데스크톱 폭으로 렌더된다.
