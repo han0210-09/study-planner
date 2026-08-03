@@ -159,3 +159,54 @@ button { font: inherit; color: inherit; }
 .totals-ratio { text-align: right; font-size: 12px; color: var(--muted); margin-top: 4px; }
 
 .memo { width: 100%; min-height: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
+
+/* ---------- 타임테이블 ---------- */
+.tt-track {
+  position: relative; margin-left: 46px; margin-top: 8px;
+  background: var(--surface); border-left: 1px solid var(--line);
+  touch-action: pan-y; user-select: none;
+}
+.tt-hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.tt-hour-label { position: absolute; left: -46px; top: -8px; width: 42px; text-align: right; font-size: 11px; color: var(--muted); }
+.tt-tick { position: absolute; left: 0; width: 5px; border-top: 1px solid #F1F3F5; }
+.tt-tick-half { width: 10px; border-top-color: #E9ECEF; }
+
+.tt-block {
+  position: absolute; left: 2px; right: 2px; min-height: 10px;
+  border-radius: 6px; overflow: hidden; display: flex; align-items: stretch;
+  filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.tt-block-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.tt-check {
+  flex: 0 0 22px; border: 0; background: rgba(255,255,255,.5);
+  font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
+}
+.tt-block-done .tt-check { background: rgba(255,255,255,.75); }
+.tt-body {
+  flex: 1; border: 0; background: transparent; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  padding: 0 6px; overflow: hidden; text-align: left;
+}
+.tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tt-time { font-size: 9px; opacity: .65; }
+.tt-handle { position: absolute; left: 0; right: 0; height: 14px; cursor: ns-resize; touch-action: none; }
+.tt-handle-top { top: -4px; }
+.tt-handle-bottom { bottom: -4px; }
+
+.tt-ghost {
+  position: absolute; left: 2px; right: 2px;
+  background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
+  border-radius: 6px; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.85); padding: 1px 5px; border-radius: 4px; }
+
+.tt-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--danger); pointer-events: none; }
+.tt-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+.editor-range { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; margin-bottom: 12px; }
+.editor-duration { font-size: 13px; color: var(--muted); }
+.stepper { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 10px; }
+.stepper-label { font-size: 13px; color: var(--muted); }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다(cal-today-btn과 동일 패턴). 44px 아래로 내리면 안 된다. */
+.stepper-btn { min-height: 44px; padding: 0 12px; }
