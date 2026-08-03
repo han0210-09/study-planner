@@ -75,7 +75,8 @@ button { font: inherit; color: inherit; }
 /* ---------- 달력 ---------- */
 .cal-head { display: grid; grid-template-columns: 44px 1fr 44px auto; align-items: center; gap: 4px; margin-bottom: 8px; }
 .cal-title { margin: 0; font-size: 18px; text-align: center; }
-.cal-today-btn { min-height: 36px; padding: 0 10px; font-size: 13px; }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다. 44px 아래로 내리면 안 된다. */
+.cal-today-btn { min-height: 44px; padding: 0 10px; font-size: 13px; }
 
 .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }

@@ -6,6 +6,7 @@
   const ui = SP.ui;
 
   const LONG_PRESS_MS = 450;
+  const MOVE_TOLERANCE = 8;
 
   function monthDays(year, month) {
     return new Date(year, month, 0).getDate();
@@ -43,22 +44,33 @@
 
   function attachLongPress(node, dateKey) {
     let timer = null;
+    let startX = 0;
     let startY = 0;
     let fired = false;
+    let moved = false;
 
     const cancel = () => { clearTimeout(timer); timer = null; };
 
     node.addEventListener("pointerdown", (e) => {
       fired = false;
+      moved = false;
+      startX = e.clientX;
       startY = e.clientY;
       timer = setTimeout(() => { fired = true; api.onLongPress(dateKey); }, LONG_PRESS_MS);
     });
     node.addEventListener("pointermove", (e) => {
-      if (timer && Math.abs(e.clientY - startY) > 8) cancel();
+      if (moved) return;
+      if (Math.abs(e.clientY - startY) > MOVE_TOLERANCE ||
+          Math.abs(e.clientX - startX) > MOVE_TOLERANCE) {
+        moved = true;
+        cancel();
+      }
     });
     node.addEventListener("pointerup", () => {
       cancel();
-      if (!fired) SP.app.showDay(dateKey);
+      // 드래그로 끝났으면 날짜를 열지 않는다. touch-action: pan-y는 터치에만 걸리므로
+      // 마우스로 끌었다 놓으면 pointercancel이 오지 않는다. moved가 유일한 방어선이다.
+      if (!fired && !moved) SP.app.showDay(dateKey);
     });
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("pointerleave", cancel);
