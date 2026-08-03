@@ -71,3 +71,39 @@ button { font: inherit; color: inherit; }
   background: var(--surface); font: inherit;
 }
 .field textarea { min-height: 88px; resize: vertical; }
+
+/* ---------- 달력 ---------- */
+.cal-head { display: grid; grid-template-columns: 44px 1fr 44px auto; align-items: center; gap: 4px; margin-bottom: 8px; }
+.cal-title { margin: 0; font-size: 18px; text-align: center; }
+.cal-today-btn { min-height: 36px; padding: 0 10px; font-size: 13px; }
+
+.cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.cal-sun { color: #E03131; }
+.cal-sat { color: #1C7ED6; }
+
+.cal-cell {
+  min-height: 74px; padding: 4px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 2px;
+  cursor: pointer; touch-action: pan-y; user-select: none;
+}
+.cal-cell-out { background: transparent; border: 0; min-height: 74px; cursor: default; }
+.cal-today { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent) inset; }
+.cal-num { font-size: 13px; font-weight: 600; }
+
+.cal-badges { display: flex; flex-direction: column; gap: 1px; min-height: 0; }
+.cal-badge { display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 1.2; }
+.cal-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.cal-badge-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { font-size: 10px; color: var(--muted); }
+
+.cal-bar { margin-top: auto; height: 4px; background: #EDEFF3; border-radius: 2px; overflow: hidden; }
+.cal-bar-fill { height: 100%; background: var(--accent); }
+.cal-achieve { font-size: 10px; color: var(--muted); text-align: right; }
+
+.cal-summary { display: flex; justify-content: space-between; margin-top: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-size: 13px; color: var(--muted); }
+
+.menu { display: flex; flex-direction: column; }
+.menu-item { min-height: 48px; text-align: left; padding: 0 4px; border: 0; background: transparent; border-bottom: 1px solid var(--line); cursor: pointer; }
+.menu-item:last-child { border-bottom: 0; }
