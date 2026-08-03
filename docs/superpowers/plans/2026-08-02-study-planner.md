@@ -3458,10 +3458,20 @@ Task 7과 8에 남아 있는 "준비 중" 자리를 전부 실제 동작으로 �
     const state = SP.app.state();
 
     function subjectRow(subject) {
+      // 과목을 고치면 시트 아래 화면의 태그 색·이름도 즉시 따라가야 한다.
+      // onDone을 부르지 않으면 다른 화면으로 갔다 돌아올 때까지 옛 색이 남는다.
       const nameInput = ui.el("input", { type: "text", value: subject.name, maxlength: "12",
-        onchange: (e) => { subjectsApi.updateSubject(state, subject.id, { name: e.target.value }); SP.app.persist(); } });
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { name: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
       const colorInput = ui.el("input", { type: "color", value: subject.color,
-        onchange: (e) => { subjectsApi.updateSubject(state, subject.id, { color: e.target.value }); SP.app.persist(); } });
+        onchange: (e) => {
+          subjectsApi.updateSubject(state, subject.id, { color: e.target.value });
+          SP.app.persist();
+          if (onDone) onDone();
+        } });
       const removeBtn = ui.el("button", { class: "icon-btn", text: "🗑", "aria-label": "삭제", onclick: async () => {
         const count = subjectsApi.countReferences(state, subject.id);
         ui.closeSheet();
@@ -3471,6 +3481,7 @@ Task 7과 8에 남아 있는 "준비 중" 자리를 전부 실제 동작으로 �
         if (!ok) { settings(onDone); return; }
         if (subjectsApi.removeSubject(state, subject.id) === -1) ui.toast("마지막 과목은 지울 수 없습니다.");
         SP.app.persist();
+        if (onDone) onDone();
         settings(onDone);
       } });
       return ui.el("div", { class: "subject-row" }, [colorInput, nameInput, removeBtn]);
@@ -3519,6 +3530,7 @@ Task 7과 8에 남아 있는 "준비 중" 자리를 전부 실제 동작으로 �
         ui.el("button", { class: "btn add-btn", text: "+ 과목 추가", onclick: () => {
           subjectsApi.addSubject(state, "새 과목", "#DDDDDD");
           SP.app.persist();
+          if (onDone) onDone();
           settings(onDone);
         } }),
         ui.el("h3", { class: "sheet-sub", text: "백업" }),
@@ -3565,7 +3577,8 @@ Task 7과 8에 남아 있는 "준비 중" 자리를 전부 실제 동작으로 �
 .sheet-sub:first-child { margin-top: 0; }
 
 .chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { min-height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 13px; cursor: pointer; }
+/* 칩도 손가락으로 누르는 대상이다. 44px 아래로 내리면 안 된다. */
+.chip { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 13px; cursor: pointer; }
 .chip-on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .custom-range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
