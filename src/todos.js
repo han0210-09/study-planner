@@ -76,15 +76,17 @@
           ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
           ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
         ]),
-        ui.el("input", {
-          type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
-          onchange: (e) => {
-            const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
-            SP.app.store().setDay(dateKey, { todos });
-            SP.app.persist();
-            onChange();
-          },
-        }),
+        ui.el("label", { class: "todo-check-hit" }, [
+          ui.el("input", {
+            type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
+            onchange: (e) => {
+              const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
+              SP.app.store().setDay(dateKey, { todos });
+              SP.app.persist();
+              onChange();
+            },
+          }),
+        ]),
       ])
     );
 

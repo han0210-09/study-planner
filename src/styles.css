@@ -139,8 +139,16 @@ button { font: inherit; color: inherit; }
 .todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 32px; }
 .todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
 .todo-order { display: flex; flex-direction: column; }
-.icon-btn.tiny { min-width: 28px; min-height: 20px; font-size: 10px; padding: 0; }
+/* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
+   세로로 각각 44px을 주면 목록 행이 88px이 되어 한 화면에 몇 줄 안 들어간다. */
+.icon-btn.tiny { min-width: 44px; min-height: 22px; font-size: 10px; padding: 0; }
 .icon-btn.tiny[disabled] { opacity: .25; }
+/* 체크박스는 이 앱의 핵심 동작이다. 보이는 상자는 24px이지만 탭 영역은 44px로 넓힌다.
+   input에는 가상요소가 안 먹으므로 label로 감싼다. */
+.todo-check-hit {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; cursor: pointer;
+}
 .todo-check { width: 24px; height: 24px; }
 .subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
 
