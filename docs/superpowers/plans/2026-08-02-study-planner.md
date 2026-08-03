@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: 없음
-- Produces: `SP.datetime` — `DAY_START:number`, `DAY_END:number`, `SLOT:number`, `DAY_BOUNDARY_HOUR:number`, `WEEKDAY_NAMES:string[]` (Task 7의 요일 헤더와 Task 10의 요일 칩이 쓴다), `snapToSlot(m:number):number`, `clampToDay(m:number):number`, `minutesToLabel(m:number):string`, `formatDuration(m:number):string`, `dateKey(d:Date):string`, `parseDateKey(k:string):Date`, `addDays(k:string, n:number):string`, `daysBetween(a:string, b:string):number`, `weekdayOf(k:string):number`, `plannerDateKey(now:Date):string`, `formatDateKorean(k:string):string`
+- Produces: `SP.datetime` — `DAY_START:number`, `DAY_END:number`, `SLOT:number`, `DAY_BOUNDARY_HOUR:number`, `WEEKDAY_NAMES:string[]` (Task 7의 요일 헤더와 Task 10의 요일 칩이 쓴다), `snapToSlot(m:number):number`, `clampToDay(m:number):number`, `minutesToLabel(m:number):string`, `formatDuration(m:number):string`, `dateKey(d:Date):string`, `parseDateKey(k:string):Date`, `isValidDateKey(k:string):boolean`, `addDays(k:string, n:number):string`, `daysBetween(a:string, b:string):number`, `weekdayOf(k:string):number`, `plannerDateKey(now:Date):string`, `formatDateKorean(k:string):string`
 
 - [ ] **Step 1: `package.json` 생성**
 
@@ -109,6 +109,24 @@ test("dateKey / parseDateKey: 로컬 기준 왕복", () => {
   assert.equal(d.getMonth(), 7);
   assert.equal(d.getDate(), 2);
   assert.equal(dt.dateKey(dt.parseDateKey("2026-12-31")), "2026-12-31");
+});
+
+test("isValidDateKey: 달력에 없는 날짜를 거른다", () => {
+  assert.equal(dt.isValidDateKey("2026-08-02"), true);
+  assert.equal(dt.isValidDateKey("2028-02-29"), true);
+  assert.equal(dt.isValidDateKey("2026-12-31"), true);
+  // 모양은 맞지만 존재하지 않는 날짜 — 파싱하면 다른 날로 굴러간다
+  assert.equal(dt.isValidDateKey("2026-02-29"), false);
+  assert.equal(dt.isValidDateKey("2026-02-30"), false);
+  assert.equal(dt.isValidDateKey("2026-04-31"), false);
+  assert.equal(dt.isValidDateKey("2026-13-01"), false);
+  assert.equal(dt.isValidDateKey("2026-00-10"), false);
+  // 모양 자체가 틀린 것
+  assert.equal(dt.isValidDateKey("2026-8-2"), false);
+  assert.equal(dt.isValidDateKey("엉망"), false);
+  assert.equal(dt.isValidDateKey(""), false);
+  assert.equal(dt.isValidDateKey(null), false);
+  assert.equal(dt.isValidDateKey(undefined), false);
 });
 
 test("addDays: 월말과 윤년 경계", () => {
@@ -200,6 +218,13 @@ Expected: FAIL — `Cannot find module '../src/datetime.js'`
     return new Date(y, m - 1, d);
   }
 
+  // 모양만 보면 안 된다. "2026-02-30"은 정규식을 통과하지만 파싱하면 3월 2일이 되어
+  // 화면에 뜨는 날짜와 D-day 계산이 어긋난다. 왕복시켜 같은 문자열이 나오는지 본다.
+  function isValidDateKey(key) {
+    if (typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+    return dateKey(parseDateKey(key)) === key;
+  }
+
   function addDays(key, n) {
     const d = parseDateKey(key);
     d.setDate(d.getDate() + n);
@@ -236,7 +261,7 @@ Expected: FAIL — `Cannot find module '../src/datetime.js'`
   const datetime = {
     DAY_START, DAY_END, SLOT, DAY_BOUNDARY_HOUR, WEEKDAY_NAMES,
     snapToSlot, clampToDay, minutesToLabel, formatDuration,
-    dateKey, parseDateKey, addDays, daysBetween, weekdayOf,
+    dateKey, parseDateKey, isValidDateKey, addDays, daysBetween, weekdayOf,
     plannerDateKey, formatDateKorean,
   };
 
@@ -401,6 +426,26 @@ test("sanitizeState: 손상 데이터를 복구한다", () => {
   assert.equal(r2.recovered, true);
   assert.deepEqual(r2.state.days, {});
   assert.deepEqual(r2.state.events, []);
+});
+
+test("sanitizeState: 달력에 없는 날짜 키와 일정을 걸러낸다", () => {
+  const raw = {
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#FFE08A" }], dayBoundaryHour: 4 },
+    days: {
+      "2026-08-02": { achievement: 0, memo: "정상", todos: [], blocks: [], updatedAt: 1 },
+      "2026-02-30": { achievement: 0, memo: "가짜", todos: [], blocks: [], updatedAt: 1 },
+    },
+    events: [
+      { id: "ok", title: "정상", type: "exam", startDate: "2026-08-14", endDate: "2026-08-14" },
+      { id: "bad", title: "가짜", type: "exam", startDate: "2026-13-01", endDate: "2026-13-01" },
+    ],
+  };
+  const { state, recovered } = store.sanitizeState(raw);
+  assert.equal(recovered, true);
+  assert.ok(state.days["2026-08-02"]);
+  assert.equal(state.days["2026-02-30"], undefined);
+  assert.deepEqual(state.events.map((e) => e.id), ["ok"]);
 });
 
 test("sanitizeState: 잘못된 블록과 빈 날을 걸러낸다", () => {
@@ -612,7 +657,7 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
     for (const [key, value] of Object.entries(rawDays)) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) { mark(); continue; }
+      if (!dt.isValidDateKey(key)) { mark(); continue; }
       if (!value || typeof value !== "object") { mark(); continue; }
       const day = emptyDay();
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
@@ -634,10 +679,10 @@ Expected: FAIL — `Cannot find module '../src/store.js'`
     }
 
     const events = (Array.isArray(raw.events) ? raw.events : (mark(), []))
-      .filter((e) => e && typeof e.title === "string" && /^\d{4}-\d{2}-\d{2}$/.test(e.startDate))
+      .filter((e) => e && typeof e.title === "string" && dt.isValidDateKey(e.startDate))
       .map((e) => ({
         id: e.id || newId(), title: e.title, type: e.type || "etc", color: e.color || "#FFA94D",
-        startDate: e.startDate, endDate: /^\d{4}-\d{2}-\d{2}$/.test(e.endDate) ? e.endDate : e.startDate,
+        startDate: e.startDate, endDate: dt.isValidDateKey(e.endDate) ? e.endDate : e.startDate,
         memo: typeof e.memo === "string" ? e.memo : "",
       }));
 
@@ -1016,6 +1061,26 @@ test("addEvent: 검증하고 추가한다", () => {
   assert.equal(events.addEvent(state, { title: "x", startDate: "엉망" }), null);
 });
 
+test("addEvent: 달력에 없는 날짜를 거부한다", () => {
+  const { state } = store.sanitizeState(null);
+  // 모양은 맞지만 존재하지 않는 날 — 받아주면 배지 날짜와 D-day 계산이 어긋난다
+  assert.equal(events.addEvent(state, { title: "x", startDate: "2026-02-30" }), null);
+  assert.equal(events.addEvent(state, { title: "x", startDate: "2026-13-01" }), null);
+  assert.equal(state.events.length, 0);
+  // 잘못된 종료일은 시작일로 대체되고, 일정 자체는 살아남는다
+  const created = events.addEvent(state, { title: "수행", startDate: "2026-08-14", endDate: "2026-02-30" });
+  assert.equal(created.endDate, "2026-08-14");
+  // 윤년 2월 29일은 진짜 날짜다
+  assert.ok(events.addEvent(state, { title: "윤년", startDate: "2028-02-29" }));
+});
+
+test("updateEvent: 달력에 없는 날짜 패치를 무시한다", () => {
+  const { state } = store.sanitizeState(null);
+  const created = events.addEvent(state, { title: "수행", startDate: "2026-08-14" });
+  assert.equal(events.updateEvent(state, created.id, { startDate: "2026-02-30" }), true);
+  assert.equal(state.events[0].startDate, "2026-08-14");
+});
+
 test("addEvent: 종료일이 시작일보다 빠르면 뒤집는다", () => {
   const { state } = store.sanitizeState(null);
   const created = events.addEvent(state, { title: "시험기간", startDate: "2026-08-22", endDate: "2026-08-20" });
@@ -1054,7 +1119,9 @@ Expected: FAIL — `Cannot find module '../src/events.js'`
     { id: "etc", label: "기타", color: "#FFA94D" },
   ];
 
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  // 달력에 실제로 존재하는 날짜만 통과시킨다. 모양만 맞는 "2026-02-30"을 받아주면
+  // 배지에는 2026-02-30이 뜨는데 D-day는 3월 2일 기준으로 계산되어 조용히 어긋난다.
+  const isDate = (k) => dt.isValidDateKey(k);
 
   function typeOf(id) {
     return EVENT_TYPES.find((t) => t.id === id) || EVENT_TYPES[EVENT_TYPES.length - 1];
@@ -1106,9 +1173,9 @@ Expected: FAIL — `Cannot find module '../src/events.js'`
   function addEvent(state, input) {
     const title = String((input && input.title) || "").trim();
     if (!title) return null;
-    if (!input || !DATE_RE.test(input.startDate)) return null;
+    if (!input || !isDate(input.startDate)) return null;
     let startDate = input.startDate;
-    let endDate = DATE_RE.test(input.endDate) ? input.endDate : startDate;
+    let endDate = isDate(input.endDate) ? input.endDate : startDate;
     if (endDate < startDate) [startDate, endDate] = [endDate, startDate];
     const type = typeOf(input.type).id;
     const created = {
@@ -1127,8 +1194,8 @@ Expected: FAIL — `Cannot find module '../src/events.js'`
     if (typeof patch.title === "string" && patch.title.trim()) e.title = patch.title.trim();
     if (patch.type) { e.type = typeOf(patch.type).id; e.color = patch.color || typeOf(e.type).color; }
     if (typeof patch.color === "string") e.color = patch.color;
-    if (DATE_RE.test(patch.startDate)) e.startDate = patch.startDate;
-    if (DATE_RE.test(patch.endDate)) e.endDate = patch.endDate;
+    if (isDate(patch.startDate)) e.startDate = patch.startDate;
+    if (isDate(patch.endDate)) e.endDate = patch.endDate;
     if (e.endDate < e.startDate) [e.startDate, e.endDate] = [e.endDate, e.startDate];
     if (typeof patch.memo === "string") e.memo = patch.memo;
     return true;
