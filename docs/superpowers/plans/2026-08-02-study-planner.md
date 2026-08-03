@@ -2829,6 +2829,9 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
 
     const select = subjectsApi.buildSelect(state.settings.subjects, block.subjectId);
     const textInput = ui.el("input", { type: "text", value: block.text, placeholder: "무엇을 공부하나요?", maxlength: "40" });
+    // 30분 블록도 트랙에서는 28px밖에 안 된다. 짧은 블록의 ✓를 손가락으로 정확히
+    // 누르기는 어려우므로, 편집 시트에서도 완료를 바꿀 수 있어야 한다.
+    const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
 
     ui.openSheet({
       title: "시간 블록",
@@ -2838,6 +2841,7 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
         stepper("종료", "end"),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "내용" }), textInput]),
+        ui.el("label", { class: "editor-done" }, [doneInput, ui.el("span", { text: "이 시간 공부 완료" })]),
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
@@ -2845,7 +2849,8 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
           ui.closeSheet(); onChange();
         } }),
         ui.el("button", { class: "btn btn-primary", text: "저장", onclick: () => {
-          const next = { ...block, start, end, subjectId: select.value || null, text: textInput.value.trim() };
+          const next = { ...block, start, end, subjectId: select.value || null,
+            text: textInput.value.trim(), done: doneInput.checked };
           const check = storeApi.validateBlock(next);
           if (!check.ok) { ui.toast(check.error); return; }
           if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
@@ -3092,8 +3097,10 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
 .tt-block-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+/* 블록 폭은 트랙 전체(390px 화면에서 약 330px)라 44px을 떼어줘도 내용이 충분히 남는다.
+   세로는 블록 높이에 갇히므로(30분 = 28px) 짧은 블록은 편집 시트의 완료 토글로 처리한다. */
 .tt-check {
-  flex: 0 0 22px; border: 0; background: rgba(255,255,255,.5);
+  flex: 0 0 44px; border: 0; background: rgba(255,255,255,.5);
   font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
 }
 .tt-block-done .tt-check { background: rgba(255,255,255,.75); }
@@ -3123,7 +3130,12 @@ height% = (end - start) / (DAY_END - DAY_START) × 100
 .editor-duration { font-size: 13px; color: var(--muted); }
 .stepper { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 10px; }
 .stepper-label { font-size: 13px; color: var(--muted); }
-.stepper-btn { min-height: 40px; padding: 0 12px; }
+/* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다. 44px 아래로 내리면 안 된다. */
+.stepper-btn { min-height: 44px; padding: 0 12px; }
+
+/* 짧은 블록은 트랙 위 ✓가 작아 누르기 어렵다. 시트에서도 완료를 바꿀 수 있어야 한다. */
+.editor-done { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 14px; cursor: pointer; }
+.editor-done input { width: 24px; height: 24px; }
 ```
 
 - [ ] **Step 3: 좌표 변환을 콘솔로 검증**
