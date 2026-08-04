@@ -107,9 +107,13 @@
     const timetableHost = ui.el("div", {});
     const totalsHost = ui.el("div", {});
 
-    const refreshTotals = () => { ui.clear(totalsHost).appendChild(totalsCard(dateKey)); };
-    const onTodoChange = () => { SP.todos.render(todoHost, dateKey, onTodoChange); };
-    const onBlockChange = () => { SP.timetable.render(timetableHost, dateKey, onBlockChange); refreshTotals(); };
+    // 할 일과 블록이 한 쌍으로 움직이므로 둘을 따로 그리면 화면이 어긋난다.
+    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다.
+    const refresh = () => {
+      SP.todos.render(todoHost, dateKey, refresh);
+      SP.timetable.render(timetableHost, dateKey, refresh);
+      ui.clear(totalsHost).appendChild(totalsCard(dateKey));
+    };
 
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
@@ -126,9 +130,7 @@
     const memo = host.querySelector(".memo");
     if (memo) memo.value = SP.app.store().getDay(dateKey).memo;
 
-    SP.todos.render(todoHost, dateKey, onTodoChange);
-    if (SP.timetable.render) SP.timetable.render(timetableHost, dateKey, onBlockChange);
-    refreshTotals();
+    refresh();
   }
 
   function refresh() {

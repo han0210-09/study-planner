@@ -38,6 +38,13 @@
     saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 300);
   }
 
+  // 블록과 할 일은 한 쌍으로 움직인다. 따로 쓰면 완료 상태가 어긋난 순간이
+  // 저장될 수 있다.
+  function saveDay(dateKey, next) {
+    store.setDay(dateKey, { todos: next.todos, blocks: next.blocks });
+    persist();
+  }
+
   // 디바운스 대기 중인 쓰기를 즉시 밀어 넣는다. 폰에서 체크 하나 하고 곧바로 앱을
   // 내리거나 화면을 끄면 300ms를 못 채우고 그 편집이 통째로 사라진다.
   function flush() {
@@ -93,6 +100,6 @@
     window.addEventListener("pagehide", flush);
   }
 
-  SP.app = { boot, state, persist, showCalendar, showDay, today, viewDate, store: () => store };
+  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, today, viewDate, store: () => store };
   document.addEventListener("DOMContentLoaded", boot);
 })(typeof globalThis !== "undefined" ? globalThis : window);
