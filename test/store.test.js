@@ -344,3 +344,30 @@ test("doneRatio: 계획 대비 실제", () => {
   // 3분의 1은 33%로 내림/반올림된다.
   assert.equal(store.doneRatio([b(300, 360, true), b(400, 520, false)]), 33);
 });
+
+// 이 규칙이 생기기 전에 켜둔 완료가 남아 있으면, 화면에 체크가 없어 끌 방법이 없다.
+test("sanitizeState: 과목 없는 항목의 켜져 있던 완료를 내린다", () => {
+  const r = store.sanitizeState({
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#fff" }] },
+    days: {
+      "2026-08-04": {
+        todos: [
+          { id: "t1", subjectId: null, text: "저녁 먹기", done: true },
+          { id: "t2", subjectId: "kor", text: "국어", done: true },
+        ],
+        blocks: [
+          { id: "b1", subjectId: null, text: "저녁", start: 300, end: 360, done: true, todoId: null },
+          { id: "b2", subjectId: "kor", text: "국어", start: 400, end: 460, done: true, todoId: null },
+        ],
+      },
+    },
+    events: [],
+  });
+  const d = r.state.days["2026-08-04"];
+  assert.equal(d.todos[0].done, false, "과목 없는 할 일");
+  assert.equal(d.todos[1].done, true, "과목 있는 할 일은 그대로 둔다");
+  assert.equal(d.blocks[0].done, false, "과목 없는 블록");
+  assert.equal(d.blocks[1].done, true, "과목 있는 블록은 그대로 둔다");
+  assert.equal(r.recovered, false, "정리는 손상이 아니다 - 복구 배너를 띄우지 않는다");
+});

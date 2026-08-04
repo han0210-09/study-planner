@@ -251,15 +251,20 @@
           ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
           ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
         ]),
-        ui.el("label", { class: "todo-check-hit" }, [
-          ui.el("input", {
-            type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
-            onchange: (e) => {
-              SP.app.saveDay(dateKey, SP.link.setTodoDone(SP.app.store().getDay(dateKey), todo.id, e.target.checked));
-              onChange();
-            },
-          }),
-        ]),
+        // 과목이 없으면 완료를 매기지 않는다 — 공부 시간에도 달성률에도 안 들어가는
+        // 일이라 체크할 대상이 없다. 빈 칸은 남겨둔다. 없애면 그 줄만 순서 화살표가
+        // 오른쪽으로 밀려 다른 줄과 열이 어긋난다.
+        storeApi.isStudy(todo)
+          ? ui.el("label", { class: "todo-check-hit" }, [
+              ui.el("input", {
+                type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
+                onchange: (e) => {
+                  SP.app.saveDay(dateKey, SP.link.setTodoDone(SP.app.store().getDay(dateKey), todo.id, e.target.checked));
+                  onChange();
+                },
+              }),
+            ])
+          : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
       ]);
       attachRowGestures(row, dateKey, todo.id, onChange);
       return row;

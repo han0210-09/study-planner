@@ -446,12 +446,18 @@
       // 05:25~12:35 같은 블록에서 ✓ 가 06시 행으로 내려가, 정작 블록이 시작하는
       // 줄에는 아무 표시가 없다.
       if (i === 0) {
-        // 포인터로 누른 click 은 둘 다 무시한다. 그 경로는 attachMove 가 같은
-        // 제스처 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)라는 뜻이다.
-        parts.push(ui.el("button", {
-          class: "tt-check", type: "button", "aria-label": "완료 토글", text: block.done ? "✓" : "",
-          onclick: (e) => { if (e.detail === 0) toggleDone(dateKey, block, onChange); },
-        }));
+        // 과목이 없으면 완료를 매기지 않는다. 공부 시간에도 달성률에도 안 들어가는
+        // 시간이라 체크할 대상이 없다. 자리도 비워둔다 — 안 눌리는 ✓ 를 두면
+        // 고장난 것처럼 보인다.
+        //
+        // 포인터로 누른 click 은 무시한다. 그 경로는 attachMove 가 같은 제스처
+        // 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)라는 뜻이다.
+        if (storeApi.isStudy(block)) {
+          parts.push(ui.el("button", {
+            class: "tt-check", type: "button", "aria-label": "완료 토글", text: block.done ? "✓" : "",
+            onclick: (e) => { if (e.detail === 0) toggleDone(dateKey, block, onChange); },
+          }));
+        }
         parts.push(ui.el("button", {
           class: "tt-body", type: "button",
           onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
@@ -557,7 +563,6 @@
     ui.clear(host).appendChild(
       ui.el("section", { class: "card" }, [
         ui.el("h2", { class: "card-title", text: "Timetable" }),
-        ui.el("p", { class: "empty", text: "빈 칸을 옆으로 끌면 시간이 잡힙니다. 블록은 잡아서 옮길 수 있습니다." }),
         mergeBtn,
         ui.el("div", { class: "tt-wrap" }, [ui.el("div", { class: "tt-labels" }, labels), cells]),
       ])

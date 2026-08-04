@@ -150,13 +150,15 @@
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
       day.memo = typeof value.memo === "string" ? value.memo : "";
       day.updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : 0;
+      // 과목이 없으면 완료도 없다. 이 규칙이 생기기 전에 켜둔 표시가 남아 있으면
+      // 화면에 체크가 없어 끌 방법이 사라진다. 손상이 아니라 정리이므로 mark() 하지 않는다.
       day.todos = (Array.isArray(value.todos) ? value.todos : []).filter((t) => t && typeof t.text === "string")
-        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!t.done }));
+        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!(t.subjectId && t.done) }));
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
         const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
           text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
-          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
+          done: !!(b && b.subjectId && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);

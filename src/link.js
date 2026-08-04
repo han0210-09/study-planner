@@ -16,15 +16,32 @@
     });
   }
 
+  // 과목이 없으면 완료라는 개념도 없다. 화면에서 체크를 뺐으므로, 켜져 있던 완료
+  // 표시가 그대로 남으면 끌 방법이 사라진다. 과목을 '과목 없음'으로 바꾸거나 설정에서
+  // 과목 자체를 지웠을 때도 이 길로 들어온다.
+  function clearDone(items) {
+    return items.map((x) => (x.subjectId || !x.done ? x : { ...x, done: false }));
+  }
+
+  // 이 파일이 돌려주는 모든 { todos, blocks } 는 여기를 지난다. 규칙을 함수마다
+  // 따로 적으면 새로 만드는 함수에서 빠뜨린다.
+  //
+  // 순서가 중요하다. 블록을 먼저 정리해야 recompute 가 정리된 값에서 할 일의
+  // 완료를 다시 뽑는다.
+  function pair(todos, blocks) {
+    const next = clearDone(blocks);
+    return { todos: clearDone(recompute(todos, next)), blocks: next };
+  }
+
   function setBlockDone(day, blockId, done) {
     const blocks = day.blocks.map((b) => (b.id === blockId ? { ...b, done } : b));
-    return { todos: recompute(day.todos, blocks), blocks };
+    return pair(day.todos, blocks);
   }
 
   function setTodoDone(day, todoId, done) {
     const blocks = day.blocks.map((b) => (b.todoId === todoId ? { ...b, done } : b));
     const todos = day.todos.map((t) => (t.id === todoId ? { ...t, done } : t));
-    return { todos, blocks };
+    return pair(todos, blocks);
   }
 
   // 블록을 지우면 연결된 할 일도 사라진다. 삭제는 양쪽 대칭이다.
@@ -37,16 +54,16 @@
     const blocks = day.blocks.filter((b) => b.id !== blockId);
     const orphaned = target && target.todoId && !blocks.some((b) => b.todoId === target.todoId);
     const todos = orphaned ? day.todos.filter((t) => t.id !== target.todoId) : day.todos;
-    return { todos: recompute(todos, blocks), blocks };
+    return pair(todos, blocks);
   }
 
   // 할 일을 지우면 블록도 사라진다. 할 일이 없어졌는데 시간표에 남아 있으면
   // 그 시간이 무엇인지 알 방법이 없다.
   function removeTodo(day, todoId) {
-    return {
-      todos: day.todos.filter((t) => t.id !== todoId),
-      blocks: day.blocks.filter((b) => b.todoId !== todoId),
-    };
+    return pair(
+      day.todos.filter((t) => t.id !== todoId),
+      day.blocks.filter((b) => b.todoId !== todoId)
+    );
   }
 
   function sortBlocks(blocks) {
@@ -80,7 +97,7 @@
 
     const exists = day.blocks.some((b) => b.id === next.id);
     const blocks = exists ? day.blocks.map((b) => (b.id === next.id ? next : b)) : day.blocks.concat([next]);
-    return { todos: recompute(todos, blocks), blocks: sortBlocks(blocks) };
+    return pair(todos, sortBlocks(blocks));
   }
 
   // 할 일 편집 시트의 저장. ranges 는 그 할 일에 배정된 시간 목록이다.
@@ -114,7 +131,7 @@
     blocks = blocks.map((b) =>
       b.todoId === todo.id ? { ...b, subjectId: todo.subjectId || null, text: todo.text } : b
     );
-    return { todos: recompute(todos, blocks), blocks: sortBlocks(blocks) };
+    return pair(todos, sortBlocks(blocks));
   }
 
   // 할 일에 시간을 배정할 때 제안할 구간. duration 이 들어가는 첫 빈 구간을 주고,
@@ -165,7 +182,7 @@
     const had = new Set((day.blocks || []).map((b) => b.todoId).filter(Boolean));
     const todos = day.todos.filter((t) => !had.has(t.id) || live.has(t.id));
 
-    return { todos: recompute(todos, out), blocks: out, merged };
+    return Object.assign(pair(todos, out), { merged });
   }
 
   const api = {

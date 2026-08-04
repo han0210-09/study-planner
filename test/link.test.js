@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 const link = require("../src/link.js");
 
 const day = (todos, blocks) => ({ todos, blocks });
-const T = (id, extra) => Object.assign({ id, subjectId: null, text: id, done: false }, extra);
+// 기본값에 과목을 준다. 과목이 없으면 완료라는 개념 자체가 없어서(clearDone),
+// subjectId: null 로 두면 완료를 다루는 시험이 전부 무의미해진다.
+const T = (id, extra) => Object.assign({ id, subjectId: "kor", text: id, done: false }, extra);
 const B = (id, start, end, extra) =>
-  Object.assign({ id, subjectId: null, text: "", start, end, done: false, todoId: null }, extra);
+  Object.assign({ id, subjectId: "kor", text: "", start, end, done: false, todoId: null }, extra);
 
 test("blocksOfTodo: 연결된 블록만", () => {
   const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" }), B("b2", 400, 460)]);
@@ -302,4 +304,58 @@ test("mergeAdjacent: 배정 없는 할 일은 건드리지 않는다", () => {
 test("mergeAdjacent: 합칠 게 없으면 merged 0", () => {
   assert.equal(link.mergeAdjacent(day([], [])).merged, 0);
   assert.equal(link.mergeAdjacent(day([T("t1")], [B("b1", 360, 420)])).merged, 0);
+});
+
+// ---- 과목 없음에는 완료가 없다 ----
+
+test("clearDone: 과목 없는 블록은 체크해도 완료가 되지 않는다", () => {
+  const d = day([], [B("b1", 300, 360, { subjectId: null })]);
+  const r = link.setBlockDone(d, "b1", true);
+  assert.equal(r.blocks[0].done, false);
+});
+
+test("clearDone: 과목 없는 할 일은 체크해도 완료가 되지 않는다", () => {
+  const d = day([T("t1", { subjectId: null })], []);
+  const r = link.setTodoDone(d, "t1", true);
+  assert.equal(r.todos[0].done, false);
+});
+
+test("clearDone: 과목 있는 쪽은 그대로 완료된다", () => {
+  const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" })]);
+  const r = link.setBlockDone(d, "b1", true);
+  assert.equal(r.blocks[0].done, true);
+  assert.equal(r.todos[0].done, true);
+});
+
+// 과목을 '과목 없음'으로 바꾸면 켜둔 완료가 갈 곳이 없어진다. 화면에 체크가
+// 없으므로 남겨두면 끌 방법이 사라진다.
+test("commitBlock: 과목을 없애면 켜져 있던 완료가 함께 내려간다", () => {
+  const d = day([], [B("b1", 300, 360, { done: true })]);
+  const r = link.commitBlock(d, { ...d.blocks[0], subjectId: null }, "none", "");
+  assert.equal(r.blocks[0].done, false);
+});
+
+test("commitTodo: 과목을 없애면 할 일과 블록의 완료가 함께 내려간다", () => {
+  const d = day([T("t1", { done: true })], [B("b1", 300, 360, { todoId: "t1", done: true })]);
+  const r = link.commitTodo(d, { ...d.todos[0], subjectId: null }, [{ id: "b1", start: 300, end: 360 }]);
+  assert.equal(r.blocks[0].done, false);
+  assert.equal(r.todos[0].done, false);
+});
+
+test("removeBlock: 남은 과목 없는 블록의 완료도 정리된다", () => {
+  const d = day([], [B("b1", 300, 360), B("b2", 400, 460, { subjectId: null, done: true })]);
+  const r = link.removeBlock(d, "b1");
+  assert.equal(r.blocks.length, 1);
+  assert.equal(r.blocks[0].done, false);
+});
+
+test("mergeAdjacent: 과목 없는 블록을 합쳐도 완료가 살아나지 않는다", () => {
+  const d = day([], [
+    B("b1", 300, 360, { subjectId: null, text: "저녁", done: true }),
+    B("b2", 360, 420, { subjectId: null, text: "저녁", done: true }),
+  ]);
+  const r = link.mergeAdjacent(d);
+  assert.equal(r.merged, 1);
+  assert.equal(r.blocks.length, 1);
+  assert.equal(r.blocks[0].done, false);
 });
