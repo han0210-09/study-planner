@@ -43,7 +43,33 @@
     return best;
   }
 
-  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex };
+  // store.limitRange 는 분 단위 경계로만 판단한다. 그 계약을 바꾸지 않고
+  // 격자의 "칸 단위 선택"을 얻으려면 넘기는 인자를 여기서 보정한다.
+  //
+  // 뒤로 끌 때 anchor 에 +5 를 주는 이유: limitRange 는 anchor 를 기준으로 블록이
+  // 위쪽인지 아래쪽인지 판정한다. anchor 칸 자체를 결과에 포함시키려면 그 칸의
+  // 끝을 넘겨야 한다. pointerdown 이 블록 위에서 시작하면 무시되므로 anchor 칸은
+  // 항상 비어 있고, 따라서 b.end <= anchor 로 잘못 잡히는 블록은 없다.
+  function selectionArgs(anchorMin, cursorMin) {
+    return cursorMin >= anchorMin
+      ? { anchor: anchorMin, cursor: cursorMin + dt.SLOT }
+      : { anchor: anchorMin + dt.SLOT, cursor: cursorMin };
+  }
+
+  // 블록 뒤에 틈이 있으면 거기서 이어 만들 블록을 돌려준다. 길이는 직전 블록과
+  // 같게 잡는다 — 50분씩 연달아 공부하는 식이 가장 흔하고 예측이 된다.
+  // 틈이 그보다 좁으면 틈 전체를 쓴다.
+  function plusSlotFor(blocks, block) {
+    let gapEnd = dt.DAY_END;
+    for (const b of blocks) {
+      if (b.id === block.id) continue;
+      if (b.start >= block.end && b.start < gapEnd) gapEnd = b.start;
+    }
+    if (gapEnd - block.end < dt.SLOT) return null;
+    return { start: block.end, end: Math.min(block.end + (block.end - block.start), gapEnd) };
+  }
+
+  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex, selectionArgs, plusSlotFor };
 
   root.SP = root.SP || {};
   root.SP.grid = api;

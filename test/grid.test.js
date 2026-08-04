@@ -62,3 +62,66 @@ test("widestIndex: 가장 넓은 조각, 동점이면 앞선 것", () => {
   assert.equal(grid.widestIndex([{ span: 3 }, { span: 3 }, { span: 1 }]), 0);
   assert.equal(grid.widestIndex([]), 0);
 });
+
+const store = require("../src/store.js");
+
+const B = (start, end, id) => ({ id: id || "b" + start, subjectId: null, text: "", start, end, done: false });
+
+// 격자에서는 손가락이 얹힌 칸이 선택에 포함되어야 한다(한글에서 글자를 끌 때처럼).
+// 05:20 칸에서 06:00 칸까지 끌면 40분이 아니라 45분이다.
+test("selectionArgs: 앞으로 끌면 커서 칸의 끝까지", () => {
+  assert.deepEqual(grid.selectionArgs(320, 360), { anchor: 320, cursor: 365 });
+});
+
+test("selectionArgs: 뒤로 끌면 앵커 칸의 끝을 앵커로 넘긴다", () => {
+  assert.deepEqual(grid.selectionArgs(360, 320), { anchor: 365, cursor: 320 });
+});
+
+test("selectionArgs: 같은 칸이면 5분", () => {
+  assert.deepEqual(grid.selectionArgs(320, 320), { anchor: 320, cursor: 325 });
+});
+
+test("selectionArgs 결과를 limitRange에 넘기면 앵커 칸이 포함된다", () => {
+  const blocks = [B(400, 460)];
+  const f = grid.selectionArgs(320, 360);
+  assert.deepEqual(store.limitRange(blocks, f.anchor, f.cursor), { start: 320, end: 365 });
+  const b = grid.selectionArgs(360, 320);
+  assert.deepEqual(store.limitRange(blocks, b.anchor, b.cursor), { start: 320, end: 365 });
+});
+
+test("plusSlotFor: 틈이 넉넉하면 직전 블록과 같은 길이", () => {
+  const blocks = [B(360, 420), B(480, 540)];
+  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 480 });
+});
+
+test("plusSlotFor: 틈이 좁으면 틈 전체", () => {
+  const blocks = [B(360, 420), B(450, 540)];
+  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 450 });
+});
+
+test("plusSlotFor: 다음 블록이 붙어 있으면 null", () => {
+  const blocks = [B(360, 420), B(420, 480)];
+  assert.equal(grid.plusSlotFor(blocks, blocks[0]), null);
+});
+
+test("plusSlotFor: DAY_END에서 끝나면 null", () => {
+  const blocks = [B(1500, 1560)];
+  assert.equal(grid.plusSlotFor(blocks, blocks[0]), null);
+});
+
+test("plusSlotFor: 틈이 정확히 5분이면 5분짜리", () => {
+  const blocks = [B(360, 420), B(425, 480)];
+  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 425 });
+});
+
+test("plusSlotFor: 뒤가 비어 있으면 DAY_END까지가 틈", () => {
+  const blocks = [B(360, 370)];
+  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 370, end: 380 });
+  assert.deepEqual(grid.plusSlotFor([B(1540, 1550)], B(1540, 1550)), { start: 1550, end: 1560 });
+});
+
+// 정렬 순서에 기대면 안 된다. 붙여넣기 직후처럼 순서가 흐트러진 배열도 들어온다.
+test("plusSlotFor: 블록 순서가 뒤죽박죽이어도 가장 이른 다음 블록을 찾는다", () => {
+  const blocks = [B(900, 960), B(360, 420), B(480, 540)];
+  assert.deepEqual(grid.plusSlotFor(blocks, blocks[1]), { start: 420, end: 480 });
+});
