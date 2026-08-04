@@ -123,7 +123,7 @@ test("commitBlock: 다른 할 일로 옮기면 옛 할 일은 미배정으로 �
 
 test("commitTodo: 새 할 일 + 시간 배정이면 블록이 생긴다", () => {
   const t = T("t1", { text: "영어 단어", subjectId: "eng" });
-  const r = link.commitTodo(day([], []), t, { start: 300, end: 360 });
+  const r = link.commitTodo(day([], []), t, [{ start: 300, end: 360 }]);
   assert.equal(r.todos.length, 1);
   assert.equal(r.blocks.length, 1);
   assert.equal(r.blocks[0].todoId, "t1");
@@ -132,38 +132,55 @@ test("commitTodo: 새 할 일 + 시간 배정이면 블록이 생긴다", () => 
 });
 
 test("commitTodo: 배정 없이 저장하면 블록이 안 생긴다", () => {
-  const r = link.commitTodo(day([], []), T("t1"), null);
+  const r = link.commitTodo(day([], []), T("t1"), []);
   assert.equal(r.todos.length, 1);
   assert.equal(r.blocks.length, 0);
 });
 
-test("commitTodo: 이미 있는 블록의 시각만 바뀐다", () => {
+// 한 할 일에 여러 시간을 주는 게 이 계약의 핵심이다.
+test("commitTodo: 여러 시간을 한 번에 배정한다", () => {
+  const t = T("t1", { text: "수학", subjectId: "math" });
+  const r = link.commitTodo(day([], []), t, [{ start: 360, end: 420 }, { start: 1260, end: 1320 }]);
+  assert.equal(r.blocks.length, 2);
+  assert.deepEqual(r.blocks.map((b) => b.start), [360, 1260]);
+  for (const b of r.blocks) assert.equal(b.todoId, "t1");
+});
+
+test("commitTodo: 기존 블록은 고치고 새 것은 더한다", () => {
   const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" })]);
-  const r = link.commitTodo(d, T("t1"), { start: 400, end: 500 });
-  assert.equal(r.blocks.length, 1);
+  const r = link.commitTodo(d, T("t1"), [{ id: "b1", start: 400, end: 500 }, { start: 600, end: 660 }]);
+  assert.equal(r.blocks.length, 2);
   assert.equal(r.blocks[0].id, "b1");
   assert.deepEqual([r.blocks[0].start, r.blocks[0].end], [400, 500]);
+  assert.equal(r.blocks[1].todoId, "t1");
 });
 
-test("commitTodo: 배정을 해제하면 블록이 사라진다", () => {
+test("commitTodo: 목록에서 빠진 블록은 사라진다", () => {
+  const d = day([T("t1")], [
+    B("b1", 300, 360, { todoId: "t1" }), B("b2", 400, 460, { todoId: "t1" }), B("b3", 500, 560),
+  ]);
+  const r = link.commitTodo(d, T("t1"), [{ id: "b2", start: 400, end: 460 }]);
+  assert.deepEqual(r.blocks.map((b) => b.id), ["b2", "b3"]);
+});
+
+test("commitTodo: 빈 목록이면 배정이 전부 없어진다", () => {
   const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" }), B("b2", 400, 460)]);
-  const r = link.commitTodo(d, T("t1"), null);
+  const r = link.commitTodo(d, T("t1"), []);
   assert.deepEqual(r.blocks.map((b) => b.id), ["b2"]);
-});
-
-// 블록이 둘 이상이면 시트의 범위 하나로 표현할 수 없다. 뷰가 "keep"을 넘긴다.
-test('commitTodo "keep": 블록을 건드리지 않는다', () => {
-  const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" }), B("b2", 400, 460, { todoId: "t1" })]);
-  const r = link.commitTodo(d, T("t1", { text: "이름만 변경" }), "keep");
-  assert.equal(r.blocks.length, 2);
-  assert.deepEqual(r.blocks.map((b) => b.text), ["이름만 변경", "이름만 변경"]);
 });
 
 test("commitTodo: 과목·내용을 고치면 연결된 블록도 따라간다", () => {
   const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1", text: "옛것" })]);
-  const r = link.commitTodo(d, T("t1", { text: "새것", subjectId: "kor" }), "keep");
+  const r = link.commitTodo(d, T("t1", { text: "새것", subjectId: "kor" }), [{ id: "b1", start: 300, end: 360 }]);
   assert.equal(r.blocks[0].text, "새것");
   assert.equal(r.blocks[0].subjectId, "kor");
+});
+
+// 완료된 할 일에 시간을 더하면 할 일이 미완으로 돌아간다. 할 일이 늘었으니 맞다.
+test("commitTodo: 완료된 할 일에 시간을 더하면 미완이 된다", () => {
+  const d = day([T("t1", { done: true })], [B("b1", 300, 360, { todoId: "t1", done: true })]);
+  const r = link.commitTodo(d, T("t1", { done: true }), [{ id: "b1", start: 300, end: 360 }, { start: 600, end: 660 }]);
+  assert.equal(r.todos[0].done, false);
 });
 
 test("firstFreeSlot: 빈 하루면 05:00부터", () => {

@@ -19,58 +19,93 @@
     const select = subjectsApi.buildSelect(state.settings.subjects, existing ? existing.subjectId : null);
     const input = ui.el("input", { type: "text", value: existing ? existing.text : "", placeholder: "할 일을 입력하세요", maxlength: "80" });
 
+    // 배정된 시간을 목록으로 다룬다. 저장 전까지는 여기서만 사는 사본이다.
     const own = SP.link.blocksOfTodo(day, todoId);
-    // 블록이 둘 이상이면 시트의 범위 하나로 표현할 수 없다. 시각은 타임테이블에서
-    // 고치게 하고 여기서는 건드리지 않는다.
-    const many = own.length > 1;
-    const suggestion = own.length === 1
-      ? { start: own[0].start, end: own[0].end }
-      : SP.link.firstFreeSlot(day.blocks, 60);
+    const slots = own.map((b) => ({ id: b.id, start: b.start, end: b.end }));
+    let active = slots.length ? 0 : -1;
+    let labels = [];
 
-    let start = suggestion ? suggestion.start : 0;
-    let end = suggestion ? suggestion.end : 0;
+    const listHost = ui.el("div", { class: "slot-list" });
 
-    const rangeLabel = ui.el("strong", {});
-    const durationLabel = ui.el("span", { class: "editor-duration" });
-    const assign = ui.el("input", { type: "checkbox", checked: own.length === 1 });
-    if (!suggestion) { assign.checked = false; assign.disabled = true; }
+    // 겹침을 볼 때는 다른 할 일의 블록에 더해, 아직 저장 안 된 이 목록의 다른
+    // 줄도 함께 봐야 한다. 안 그러면 한 할 일 안에서 시간이 겹친 채 저장된다.
+    function others(exceptIndex) {
+      const list = day.blocks.filter((b) => b.todoId !== todoId);
+      slots.forEach((s, i) => {
+        if (i !== exceptIndex) list.push({ id: "slot" + i, start: s.start, end: s.end });
+      });
+      return list;
+    }
 
-    function redraw() {
-      if (suggestion) {
-        rangeLabel.textContent = dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end);
-        durationLabel.textContent = dt.formatDuration(end - start);
-      } else {
-        rangeLabel.textContent = "빈 시간이 없습니다";
-        durationLabel.textContent = "";
+    function paint(i) {
+      const s = slots[i];
+      labels[i].range.textContent = dt.minutesToLabel(s.start) + " ~ " + dt.minutesToLabel(s.end);
+      labels[i].dur.textContent = dt.formatDuration(s.end - s.start);
+    }
+
+    function nudge(i, which, delta) {
+      const s = slots[i];
+      const nextStart = which === "start" ? dt.clampToDay(s.start + delta) : s.start;
+      const nextEnd = which === "end" ? dt.clampToDay(s.end + delta) : s.end;
+      if (nextEnd - nextStart < dt.SLOT) { ui.toast("시간은 최소 5분이어야 합니다."); return; }
+      if (storeApi.findOverlap(others(i), { id: "__probe__", start: nextStart, end: nextEnd })) {
+        ui.toast("다른 블록과 겹칩니다."); return;
       }
-      rangeBox.hidden = !assign.checked;
+      s.start = nextStart; s.end = nextEnd;
+      // 목록 전체를 다시 그리지 않는다. ±5분을 연타하는 동안 버튼이 갈리면
+      // 탭이 떨어져 나간다.
+      paint(i);
     }
 
-    function nudge(which, delta) {
-      const nextStart = which === "start" ? dt.clampToDay(start + delta) : start;
-      const nextEnd = which === "end" ? dt.clampToDay(end + delta) : end;
-      if (nextEnd - nextStart < dt.SLOT) { ui.toast("블록은 최소 5분이어야 합니다."); return; }
-      const probe = { id: own.length ? own[0].id : null, start: nextStart, end: nextEnd };
-      if (storeApi.findOverlap(day.blocks, probe, probe.id)) { ui.toast("다른 블록과 겹칩니다."); return; }
-      start = nextStart; end = nextEnd;
-      redraw();
-    }
-
-    const stepper = (label, which) =>
-      ui.el("div", { class: "stepper" }, [
+    const stepper = (label, i, which) =>
+      ui.el("div", { class: "stepper slot-step" }, [
         ui.el("span", { class: "stepper-label", text: label }),
-        ui.el("button", { class: "btn stepper-btn", text: "−5분", onclick: () => nudge(which, -dt.SLOT) }),
-        ui.el("button", { class: "btn stepper-btn", text: "+5분", onclick: () => nudge(which, dt.SLOT) }),
+        ui.el("button", { class: "btn stepper-btn", type: "button", text: "−5분", onclick: () => nudge(i, which, -dt.SLOT) }),
+        ui.el("button", { class: "btn stepper-btn", type: "button", text: "+5분", onclick: () => nudge(i, which, dt.SLOT) }),
       ]);
 
-    const rangeBox = ui.el("div", {}, [
-      ui.el("div", { class: "editor-range" }, [rangeLabel, durationLabel]),
-      stepper("시작", "start"),
-      stepper("종료", "end"),
-    ]);
+    function addSlot() {
+      const found = SP.link.firstFreeSlot(others(-1), 60);
+      if (!found) { ui.toast("빈 시간이 없습니다."); return; }
+      slots.push({ start: found.start, end: found.end });
+      active = slots.length - 1;
+      renderSlots();
+    }
 
-    assign.addEventListener("change", redraw);
-    redraw();
+    function renderSlots() {
+      ui.clear(listHost);
+      labels = [];
+      if (slots.length === 0) {
+        listHost.appendChild(ui.el("p", { class: "empty", text: "배정된 시간이 없습니다." }));
+      }
+      slots.forEach((slot, i) => {
+        const range = ui.el("span", { class: "slot-range" });
+        const dur = ui.el("span", { class: "slot-dur" });
+        labels[i] = { range, dur };
+        listHost.appendChild(ui.el("div", { class: "slot" + (i === active ? " slot-on" : "") }, [
+          ui.el("button", {
+            class: "slot-head", type: "button",
+            onclick: () => { active = active === i ? -1 : i; renderSlots(); },
+          }, [range, dur]),
+          ui.el("button", {
+            class: "icon-btn slot-del", type: "button", text: "✕", "aria-label": "이 시간 빼기",
+            onclick: () => {
+              slots.splice(i, 1);
+              if (active >= slots.length) active = slots.length - 1;
+              renderSlots();
+            },
+          }),
+        ]));
+        paint(i);
+        if (i === active) {
+          listHost.appendChild(stepper("시작", i, "start"));
+          listHost.appendChild(stepper("종료", i, "end"));
+        }
+      });
+      listHost.appendChild(ui.el("button", { class: "btn add-btn", type: "button", text: "+ 시간 추가", onclick: addSlot }));
+    }
+
+    renderSlots();
 
     const save = () => {
       const text = input.value.trim();
@@ -78,8 +113,7 @@
       const todo = existing
         ? { ...existing, subjectId: select.value || null, text }
         : { id: storeApi.newId(), subjectId: select.value || null, text, done: false };
-      const range = many ? "keep" : (assign.checked && suggestion ? { start, end } : null);
-      SP.app.saveDay(dateKey, SP.link.commitTodo(SP.app.store().getDay(dateKey), todo, range));
+      SP.app.saveDay(dateKey, SP.link.commitTodo(SP.app.store().getDay(dateKey), todo, slots));
       ui.closeSheet();
       onDone();
     };
@@ -101,10 +135,8 @@
       body: [
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), input]),
-        many
-          ? ui.el("p", { class: "empty", text: "타임테이블에 " + own.length + "개 배정되어 있습니다. 시각은 타임테이블에서 바꾸세요." })
-          : ui.el("label", { class: "editor-done" }, [assign, ui.el("span", { text: "타임테이블에 시간 배정" })]),
-        many ? null : rangeBox,
+        ui.el("p", { class: "sheet-sub", text: "배정된 시간" }),
+        listHost,
       ],
       actions: [
         existing

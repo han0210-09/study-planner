@@ -76,25 +76,31 @@
     return { todos: recompute(todos, blocks), blocks: sortBlocks(blocks) };
   }
 
-  // 할 일 편집 시트의 저장. range 는 {start,end} | null(배정 해제) | "keep"(그대로).
-  // 블록이 둘 이상이면 시트의 범위 하나로 표현할 수 없어 뷰가 "keep"을 넘긴다.
-  function commitTodo(day, todo, range) {
+  // 할 일 편집 시트의 저장. ranges 는 그 할 일에 배정된 시간 목록이다.
+  // id 가 있으면 기존 블록의 시각을 고치고, 없으면 새로 만든다. 목록에서 빠진
+  // 블록은 배정이 풀린 것이므로 지운다. 빈 배열이면 배정을 전부 없앤다.
+  //
+  // 범위 하나만 받으면 "한 할 일에 여러 시간"을 표현할 수 없다. 목록으로 받으면
+  // 0개·1개·여러 개가 같은 길로 처리된다.
+  function commitTodo(day, todo, ranges) {
     const exists = day.todos.some((t) => t.id === todo.id);
     let todos = exists ? day.todos.map((t) => (t.id === todo.id ? { ...t, ...todo } : t)) : day.todos.concat([todo]);
-    let blocks = day.blocks.slice();
 
-    if (range && range !== "keep") {
-      const own = blocks.filter((b) => b.todoId === todo.id);
-      if (own.length === 0) {
+    const list = Array.isArray(ranges) ? ranges : [];
+    const kept = new Set(list.filter((r) => r.id).map((r) => r.id));
+    let blocks = day.blocks.filter((b) => b.todoId !== todo.id || kept.has(b.id));
+
+    for (const r of list) {
+      if (r.id) {
+        blocks = blocks.map((b) => (b.id === r.id ? { ...b, start: r.start, end: r.end } : b));
+      } else {
+        // 새로 더한 시간은 아직 안 한 것이다. 완료된 할 일에 시간을 더하면
+        // recompute 가 그 할 일을 미완으로 되돌린다 — 할 일이 늘었으니 맞다.
         blocks = blocks.concat([{
           id: store.newId(), todoId: todo.id, subjectId: todo.subjectId || null,
-          text: todo.text, start: range.start, end: range.end, done: !!todo.done,
+          text: todo.text, start: r.start, end: r.end, done: false,
         }]);
-      } else {
-        blocks = blocks.map((b) => (b.id === own[0].id ? { ...b, start: range.start, end: range.end } : b));
       }
-    } else if (range === null) {
-      blocks = blocks.filter((b) => b.todoId !== todo.id);
     }
 
     // 연결된 쌍은 과목·내용이 항상 같다.
