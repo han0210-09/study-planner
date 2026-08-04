@@ -6,6 +6,9 @@
   "scripts": {
     "test": "node --test",
     "build": "node build.js",
-    "serve": "node serve.js"
+    "build:artifact": "node build.js && node build-artifact.js",
+    "build:pwa": "node build.js && node build-pwa.js",
+    "serve": "node serve.js",
+    "serve:pwa": "node serve.js dist/pwa"
   }
 }

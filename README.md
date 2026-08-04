@@ -7,15 +7,27 @@
 - **개발 서버**: `node serve.js` → http://localhost:8080
 - **테스트**: `node --test`
 - **빌드**: `node build.js` → `dist/planner.html` (단일 HTML, 외부 요청 없음)
+- **PWA 빌드**: `npm run build:pwa` → `dist/pwa/`
+- **PWA 확인**: `npm run serve:pwa` → http://localhost:8080
 
 ## 폰에서 쓰기
 
-`dist/planner.html`을 Artifact로 퍼블리시하면 나오는 URL을 폰 브라우저로 열고 "홈 화면에 추가"한다.
+`dist/pwa/` 를 HTTPS 주소에 올리고 폰 브라우저로 열어 홈 화면에 추가하면
+주소창 없는 앱으로 실행되고, 오프라인에서도 열린다.
+
+- **안드로이드(크롬)**: 주소를 열면 설치 배너가 뜬다. 없으면 `⋮ → 앱 설치`
+- **아이폰**: **Safari 로** 열고 `공유 → 홈 화면에 추가` (크롬에서는 안 된다)
+
+서비스 워커와 manifest 는 HTTPS 에서만 동작한다. `file://` 로 연 HTML 은
+설치되지 않고, 브라우저에 따라 저장 자체가 막힌다.
 
 ## 데이터
 
 이 기기의 브라우저 저장소(`localStorage`, 키 `studyPlanner.v1`)에만 저장된다. 기기 간 자동 동기화는 없다.
 **기기를 바꾸기 전에 설정 → JSON 내보내기로 백업할 것.**
+
+저장소는 **주소마다 따로**다. 앱을 다른 주소로 옮기면 계획이 따라오지 않으므로,
+옮기기 전에 JSON 으로 내보내고 새 주소에서 불러와야 한다.
 
 ## 문서
 
@@ -30,3 +42,23 @@
 
 `<head>` 의 meta 는 본문에서 무시되므로 런타임에 심는 스크립트를 함께 넣는다.
 특히 viewport 가 없으면 폰에서 데스크톱 폭으로 렌더된다.
+
+### GitHub Pages (홈 화면 앱)
+
+`node build-pwa.js` 는 `dist/planner.html` 에 manifest·아이콘·서비스 워커를
+붙여 `dist/pwa/` 를 만든다. 아이콘은 `icon.js` 가 그려서 PNG 로 인코딩한다
+(의존성을 늘리지 않으려고 `node:zlib` 만 쓴다).
+
+`dist/pwa/` 를 `gh-pages` 브랜치 루트로 올리고 Settings → Pages 에서 그 브랜치를
+고른다.
+
+```
+git subtree push --prefix dist/pwa origin gh-pages
+```
+
+**경로는 전부 상대 경로여야 한다.** Pages 는 `https://<계정>.github.io/<저장소>/`
+처럼 하위 폴더로 서비스하므로, `/icon-192.png` 같은 절대 경로는 계정 최상위를
+찾아가서 전부 404 가 된다.
+
+서비스 워커 캐시 이름에는 빌드 내용의 해시가 붙는다. 시각으로 만들면 고친 게
+없는 날에도 폰이 앱을 통째로 다시 받는다.
