@@ -359,3 +359,55 @@ test("mergeAdjacent: 과목 없는 블록을 합쳐도 완료가 살아나지 �
   assert.equal(r.blocks.length, 1);
   assert.equal(r.blocks[0].done, false);
 });
+
+// ---- 블록에서 생긴 할 일은 시각 순서대로 들어간다 ----
+
+const titles = (r) => r.todos.map((t) => t.text);
+
+test("commitBlock: 새 할 일이 블록 시각에 맞는 자리에 들어간다", () => {
+  const d = day(
+    [T("t1", { text: "아침" }), T("t2", { text: "저녁" })],
+    [B("b1", 360, 420, { todoId: "t1" }), B("b2", 1080, 1140, { todoId: "t2" })]
+  );
+  // 09시에 새 블록 → 아침(06시)과 저녁(18시) 사이
+  const r = link.commitBlock(d, B("b3", 540, 600), "new", "낮");
+  assert.deepEqual(titles(r), ["아침", "낮", "저녁"]);
+});
+
+test("commitBlock: 가장 이른 블록이면 맨 위로 간다", () => {
+  const d = day([T("t1", { text: "저녁" })], [B("b1", 1080, 1140, { todoId: "t1" })]);
+  const r = link.commitBlock(d, B("b2", 360, 420), "new", "새벽");
+  assert.deepEqual(titles(r), ["새벽", "저녁"]);
+});
+
+test("commitBlock: 가장 늦은 블록이면 맨 아래로 간다", () => {
+  const d = day([T("t1", { text: "아침" })], [B("b1", 360, 420, { todoId: "t1" })]);
+  const r = link.commitBlock(d, B("b2", 1080, 1140), "new", "저녁");
+  assert.deepEqual(titles(r), ["아침", "저녁"]);
+});
+
+// 손으로 맞춰둔 순서를 블록 하나 만들 때마다 갈아엎지 않는다.
+test("commitBlock: 기존 할 일끼리의 순서는 건드리지 않는다", () => {
+  const d = day(
+    [T("t1", { text: "늦은것" }), T("t2", { text: "이른것" })],
+    [B("b1", 1080, 1140, { todoId: "t1" }), B("b2", 360, 420, { todoId: "t2" })]
+  );
+  const r = link.commitBlock(d, B("b3", 1200, 1260), "new", "더늦은것");
+  assert.deepEqual(titles(r), ["늦은것", "이른것", "더늦은것"]);
+});
+
+test("commitBlock: 시간 없는 할 일은 자리를 내주지 않는다", () => {
+  const d = day([T("t1", { text: "미배정" }), T("t2", { text: "저녁" })],
+    [B("b1", 1080, 1140, { todoId: "t2" })]);
+  const r = link.commitBlock(d, B("b2", 360, 420), "new", "아침");
+  assert.deepEqual(titles(r), ["미배정", "아침", "저녁"]);
+});
+
+test("commitBlock: 같은 할 일에 붙을 때는 자리를 만들지 않는다", () => {
+  const d = day([T("t1", { text: "아침" }), T("t2", { text: "국어" })],
+    [B("b1", 360, 420, { todoId: "t1" }), B("b2", 1080, 1140, { todoId: "t2" })]);
+  // 과목·내용이 같으므로 t2 에 붙는다. 할 일 개수도 순서도 그대로다.
+  const r = link.commitBlock(d, B("b3", 480, 540), "new", "국어");
+  assert.deepEqual(titles(r), ["아침", "국어"]);
+  assert.equal(r.blocks.find((b) => b.id === "b3").todoId, "t2");
+});
