@@ -8,19 +8,29 @@
     return (todos || []).map((t) => ({ subjectId: t.subjectId || null, text: t.text, done: false }));
   }
 
-  function cloneBlocks(blocks) {
+  // 페이로드에는 id 를 담지 않는다. 붙여넣을 때 id 가 전부 새로 발급되므로
+  // 연결은 위치 색인으로 옮긴다. todoId 를 그대로 담으면 붙여넣은 블록이
+  // 원본 날짜의 할 일을 가리켜 완료 체크가 엉뚱한 날에 반영된다.
+  function cloneBlocks(blocks, todos) {
+    const index = new Map((todos || []).map((t, i) => [t.id, i]));
     return (blocks || []).map((b) => ({
       subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
+      todoIndex: index.has(b.todoId) ? index.get(b.todoId) : -1,
     }));
   }
 
   function materialize(payload) {
-    return {
-      todos: (payload.todos || []).map((t) => ({ id: store.newId(), subjectId: t.subjectId || null, text: t.text, done: false })),
-      blocks: (payload.blocks || []).map((b) => ({
-        id: store.newId(), subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
-      })),
-    };
+    const todos = (payload.todos || []).map((t) => ({
+      id: store.newId(), subjectId: t.subjectId || null, text: t.text, done: false,
+    }));
+    const blocks = (payload.blocks || []).map((b) => {
+      const linked = typeof b.todoIndex === "number" && b.todoIndex >= 0 ? todos[b.todoIndex] : null;
+      return {
+        id: store.newId(), subjectId: b.subjectId || null, text: b.text || "",
+        start: b.start, end: b.end, done: false, todoId: linked ? linked.id : null,
+      };
+    });
+    return { todos, blocks };
   }
 
   function copyDay(state, key) {
@@ -29,7 +39,7 @@
     if (day.todos.length === 0 && day.blocks.length === 0) return null;
     return {
       kind: "day", copiedAt: Date.now(),
-      payload: { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) },
+      payload: { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks, day.todos) },
     };
   }
 
@@ -45,7 +55,7 @@
       const key = dt.addDays(start, i);
       const day = state.days[key];
       if (!day || (day.todos.length === 0 && day.blocks.length === 0)) continue;
-      byWeekday[String(dt.weekdayOf(key))] = { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) };
+      byWeekday[String(dt.weekdayOf(key))] = { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks, day.todos) };
       found = true;
     }
     if (!found) return null;

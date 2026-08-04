@@ -224,3 +224,50 @@ test("describeClip", () => {
   assert.equal(clipboard.describeClip(clipboard.copyWeek(next, "2026-08-10")), "일주일 계획 (1개 요일)");
   assert.equal(clipboard.describeClip(null), "복사한 계획 없음");
 });
+
+test("붙여넣은 블록은 원본이 아니라 새 할 일을 가리킨다", () => {
+  const state = { days: { "2026-08-03": {
+    achievement: 0, memo: "", updatedAt: 0,
+    todos: [{ id: "t1", subjectId: null, text: "수학", done: false }],
+    blocks: [{ id: "b1", subjectId: null, text: "수학", start: 300, end: 360, done: false, todoId: "t1" }],
+  } } };
+  const clip = clipboard.copyDay(state, "2026-08-03");
+  clipboard.paste(state, clip, ["2026-08-10"], "replace");
+  const pasted = state.days["2026-08-10"];
+  assert.equal(pasted.todos.length, 1);
+  assert.notEqual(pasted.todos[0].id, "t1");
+  assert.equal(pasted.blocks[0].todoId, pasted.todos[0].id);
+});
+
+test("연결 없는 블록은 붙여넣어도 연결 없이 남는다", () => {
+  const state = { days: { "2026-08-03": {
+    achievement: 0, memo: "", updatedAt: 0,
+    todos: [],
+    blocks: [{ id: "b1", subjectId: null, text: "자습", start: 300, end: 360, done: false, todoId: null }],
+  } } };
+  const clip = clipboard.copyDay(state, "2026-08-03");
+  clipboard.paste(state, clip, ["2026-08-10"], "replace");
+  assert.equal(state.days["2026-08-10"].blocks[0].todoId, null);
+});
+
+// 겹쳐서 블록이 버려져도 할 일은 남는다. 계획 항목은 살아 있고 시각만 없는 상태다.
+test("merge에서 블록이 겹쳐 버려져도 할 일은 미배정으로 남는다", () => {
+  const state = { days: {
+    "2026-08-03": {
+      achievement: 0, memo: "", updatedAt: 0,
+      todos: [{ id: "t1", subjectId: null, text: "수학", done: false }],
+      blocks: [{ id: "b1", subjectId: null, text: "수학", start: 300, end: 360, done: false, todoId: "t1" }],
+    },
+    "2026-08-10": {
+      achievement: 0, memo: "", updatedAt: 0, todos: [],
+      blocks: [{ id: "x1", subjectId: null, text: "선점", start: 300, end: 360, done: false, todoId: null }],
+    },
+  } };
+  const clip = clipboard.copyDay(state, "2026-08-03");
+  const r = clipboard.paste(state, clip, ["2026-08-10"], "merge");
+  assert.equal(r.skippedBlocks, 1);
+  const target = state.days["2026-08-10"];
+  assert.equal(target.todos.length, 1);
+  assert.equal(target.blocks.length, 1);
+  assert.equal(target.blocks[0].id, "x1");
+});
