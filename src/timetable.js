@@ -155,6 +155,11 @@
     observer.observe(host, { childList: true });
   }
 
+  function toggleDone(dateKey, block, onChange) {
+    SP.app.saveDay(dateKey, SP.link.setBlockDone(SP.app.store().getDay(dateKey), block.id, !block.done));
+    onChange();
+  }
+
   function createBlock(dateKey, start, end, onChange) {
     const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false, todoId: null };
     const check = storeApi.validateBlock(candidate);
@@ -281,9 +286,11 @@
 
       const ghost = [];
       let next = null;
+      let moved = false;
 
       function onMove(ev) {
         ev.preventDefault();
+        moved = true;
         const cursor = pointToMinutes(ev.clientX, ev.clientY, cells);
         // 고정된 쪽 모서리가 anchor 다. 끝을 끌 때만 커서 칸을 포함시킨다.
         const anchor = edge === "start" ? block.end : block.start;
@@ -301,7 +308,13 @@
         handle.removeEventListener("pointerup", onUp);
         handle.removeEventListener("pointercancel", onUp);
         for (const n of ghost) n.remove();
+        // 흐리게 한 것은 여기서 되돌린다. 아래 분기 중 하나는 다시 그리지 않고
+        // 빠져나가므로, onChange 에 맡기면 블록이 흐린 채로 남는다.
+        for (const n of owned) n.classList.remove("tt-seg-dragging");
         cells.style.touchAction = "";
+        // 손잡이를 그냥 톡 누른 것도 블록을 누른 것이다. 좁은 조각에서는 손잡이가
+        // 조각 폭의 대부분을 덮으므로, 여기서 안 받으면 그 블록을 열 방법이 없다.
+        if (!moved) { openBlockEditor(dateKey, blockId, onChange); return; }
         if (!next || (next.start === block.start && next.end === block.end)) { onChange(); return; }
         const updated = { ...block, start: next.start, end: next.end };
         if (!storeApi.validateBlock(updated).ok || storeApi.findOverlap(blocksOf(dateKey), updated, blockId)) {
@@ -334,6 +347,7 @@
     let pointerId = null;
     let cells = null;
     let placed = null;
+    let tapCheck = false;
     const ghost = [];
     const duration = block.end - block.start;
 
@@ -371,13 +385,16 @@
     }
 
     node.addEventListener("pointerdown", (e) => {
-      if (e.target.closest(".tt-check, .tt-handle")) return;
+      // 손잡이만 뺀다. ✓ 위에서 눌러도 끌 수 있어야 블록 전체가 잡히는 느낌이 난다.
+      // 끌었는지 톡 눌렀는지는 손을 뗄 때 가른다.
+      if (e.target.closest(".tt-handle")) return;
       cells = node.closest(".tt-cells");
       if (!cells) return;
       pointerId = e.pointerId;
       startX = e.clientX; startY = e.clientY;
       offset = pointToMinutes(e.clientX, e.clientY, cells) - block.start;
       decided = false; placed = null;
+      tapCheck = !!e.target.closest(".tt-check");
     });
 
     node.addEventListener("pointermove", (e) => {
@@ -397,10 +414,13 @@
     node.addEventListener("pointerup", () => {
       if (!active) {
         // 허용치를 넘긴 적이 없으면 탭이다. 세로로 끌어 스크롤한 경우는
-        // decided 가 서 있으므로 시트를 열지 않는다.
+        // decided 가 서 있으므로 아무것도 열지 않는다.
         const tap = !decided && pointerId !== null;
-        decided = false; pointerId = null;
-        if (tap) openBlockEditor(dateKey, block.id, onChange);
+        const onCheck = tapCheck;
+        decided = false; pointerId = null; tapCheck = false;
+        if (!tap) return;
+        if (onCheck) toggleDone(dateKey, block, onChange);
+        else openBlockEditor(dateKey, block.id, onChange);
         return;
       }
       const next = placed;
@@ -418,22 +438,20 @@
     const color = subjectsApi.colorOf(subjects, block.subjectId);
     const label = [subjectsApi.nameOf(subjects, block.subjectId), block.text].filter(Boolean).join(" · ") || "이름 없음";
     const segs = grid.segmentsOf(block.start, block.end);
-    const widest = grid.widestIndex(segs);
     const last = segs.length - 1;
 
     return segs.map((seg, i) => {
       const parts = [];
-      if (i === widest) {
+      // ✓ 와 이름은 블록이 시작하는 조각에 붙인다. 가장 넓은 조각에 붙이면
+      // 05:25~12:35 같은 블록에서 ✓ 가 06시 행으로 내려가, 정작 블록이 시작하는
+      // 줄에는 아무 표시가 없다.
+      if (i === 0) {
+        // 포인터로 누른 click 은 둘 다 무시한다. 그 경로는 attachMove 가 같은
+        // 제스처 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)라는 뜻이다.
         parts.push(ui.el("button", {
-          class: "tt-check", "aria-label": "완료 토글", text: block.done ? "✓" : "",
-          onclick: (e) => {
-            e.stopPropagation();
-            SP.app.saveDay(dateKey, SP.link.setBlockDone(SP.app.store().getDay(dateKey), block.id, !block.done));
-            onChange();
-          },
+          class: "tt-check", type: "button", "aria-label": "완료 토글", text: block.done ? "✓" : "",
+          onclick: (e) => { if (e.detail === 0) toggleDone(dateKey, block, onChange); },
         }));
-        // 포인터로 누른 click 은 무시한다. 그 경로는 attachMove 가 같은 제스처
-        // 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)라는 뜻이다.
         parts.push(ui.el("button", {
           class: "tt-body", type: "button",
           onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
@@ -441,8 +459,8 @@
           ui.el("span", { class: "tt-label", text: label }),
           ui.el("span", { class: "tt-time", text: dt.minutesToLabel(block.start) + "~" + dt.minutesToLabel(block.end) }),
         ]));
+        parts.push(ui.el("div", { class: "tt-handle tt-handle-start", "aria-hidden": "true" }));
       }
-      if (i === 0) parts.push(ui.el("div", { class: "tt-handle tt-handle-start", "aria-hidden": "true" }));
       if (i === last) parts.push(ui.el("div", { class: "tt-handle tt-handle-end", "aria-hidden": "true" }));
 
       // position 은 인라인으로 준다. .tt-handle 이 absolute 라 기준 상자가 필요하다.
