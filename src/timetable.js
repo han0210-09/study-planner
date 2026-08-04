@@ -31,9 +31,10 @@
     SP.app.persist();
   }
 
-  function openBlockEditor(dateKey, blockId, onChange) {
+  function openBlockEditor(dateKey, blockId, onChange, isNew) {
     const state = SP.app.state();
-    const blocks = blocksOf(dateKey);
+    const day = SP.app.store().getDay(dateKey);
+    const blocks = day.blocks;
     const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
 
@@ -71,6 +72,23 @@
     // 어렵다. 편집 시트에서도 완료를 바꿀 수 있어야 한다.
     const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
 
+    // 새 블록은 할 일을 함께 만드는 게 기본이다. 이미 있는 블록은 지금 상태가 기본.
+    const initialChoice = block.todoId || (isNew ? "new" : "none");
+    const todoSelect = ui.el("select", { class: "subject-select" }, [
+      ui.el("option", { value: "new", text: "＋ 새 할 일로 추가", selected: initialChoice === "new" }),
+      ...day.todos.map((t) =>
+        ui.el("option", { value: t.id, text: t.text, selected: initialChoice === t.id })),
+      ui.el("option", { value: "none", text: "할 일과 연결 안 함", selected: initialChoice === "none" }),
+    ]);
+    // 기존 할 일을 고르면 과목·내용을 그 할 일 값으로 맞춘다. 저장할 때는 화면에
+    // 보이는 값이 양쪽에 쓰이므로, 고른 순간 보여줘야 무엇이 저장될지 알 수 있다.
+    todoSelect.addEventListener("change", () => {
+      const picked = day.todos.find((t) => t.id === todoSelect.value);
+      if (!picked) return;
+      textInput.value = picked.text;
+      select.value = picked.subjectId || "";
+    });
+
     ui.openSheet({
       title: "시간 블록",
       body: [
@@ -79,11 +97,13 @@
         stepper("종료", "end"),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "내용" }), textInput]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), todoSelect]),
         ui.el("label", { class: "editor-done" }, [doneInput, ui.el("span", { text: "이 시간 공부 완료" })]),
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
-          saveBlocks(dateKey, blocks.filter((b) => b.id !== blockId));
+          // 할 일은 남긴다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+          SP.app.saveDay(dateKey, SP.link.removeBlock(SP.app.store().getDay(dateKey), blockId));
           ui.closeSheet(); onChange();
         } }),
         ui.el("button", { class: "btn btn-primary", text: "저장", onclick: () => {
@@ -92,7 +112,10 @@
           const check = storeApi.validateBlock(next);
           if (!check.ok) { ui.toast(check.error); return; }
           if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
-          saveBlocks(dateKey, blocks.map((b) => (b.id === blockId ? next : b)));
+          // 빈 할 일이 생기지 않게 하되 새 검증 규칙은 만들지 않는다.
+          const todoText = next.text || subjectsApi.nameOf(state.settings.subjects, next.subjectId) || "이름 없음";
+          SP.app.saveDay(dateKey,
+            SP.link.commitBlock(SP.app.store().getDay(dateKey), next, todoSelect.value, todoText));
           ui.closeSheet(); onChange();
         } }),
       ],
@@ -103,7 +126,7 @@
   function openBlockEditorOrRollback(dateKey, blockId, onChange) {
     const before = blocksOf(dateKey).find((b) => b.id === blockId);
     let committed = false;
-    openBlockEditor(dateKey, blockId, () => { committed = true; onChange(); });
+    openBlockEditor(dateKey, blockId, () => { committed = true; onChange(); }, true);
     const host = document.getElementById("sheet-root");
     const observer = new MutationObserver(() => {
       if (host.childElementCount === 0) {
@@ -118,7 +141,7 @@
   }
 
   function createBlock(dateKey, start, end, onChange) {
-    const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false };
+    const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false, todoId: null };
     const check = storeApi.validateBlock(candidate);
     if (!check.ok) { ui.toast(check.error); return; }
     if (storeApi.findOverlap(blocksOf(dateKey), candidate)) { ui.toast("다른 블록과 겹칩니다."); return; }
@@ -303,7 +326,7 @@
           class: "tt-check", "aria-label": "완료 토글", text: block.done ? "✓" : "",
           onclick: (e) => {
             e.stopPropagation();
-            saveBlocks(dateKey, blocksOf(dateKey).map((b) => (b.id === block.id ? { ...b, done: !b.done } : b)));
+            SP.app.saveDay(dateKey, SP.link.setBlockDone(SP.app.store().getDay(dateKey), block.id, !block.done));
             onChange();
           },
         }));
