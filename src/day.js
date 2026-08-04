@@ -63,6 +63,7 @@
   // 달성률은 맨 위 카드가 맡는다. 여기서는 시간만 보여준다.
   function totalsCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
+    const uncounted = storeApi.sumUncounted(day.blocks);
     return ui.el("section", { class: "card totals" }, [
       ui.el("div", { class: "totals-row" }, [
         ui.el("span", { class: "totals-label", text: "목표시간" }),
@@ -72,6 +73,14 @@
         ui.el("span", { class: "totals-label", text: "실제시간" }),
         ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
       ]),
+      // 없으면 아무 말도 하지 않는다. 시간표에 있는 시간이 합계에서 빠졌을 때만,
+      // 왜 숫자가 다른지 여기서 밝힌다.
+      uncounted > 0
+        ? ui.el("p", {
+            class: "totals-note",
+            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다.",
+          })
+        : null,
     ]);
   }
 

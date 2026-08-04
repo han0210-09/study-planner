@@ -28,6 +28,23 @@
     document.body.classList.remove("sheet-open");
   }
 
+  // 길게 눌러서 연 시트는, 손을 떼는 순간 나오는 click 이 방금 그 자리에 나타난
+  // scrim 이나 버튼 위로 떨어진다. 그것만으로 시트가 즉시 닫히거나 버튼이 눌린다.
+  // 손가락을 뗀 지점이 어디였는지는 시트가 알 수 없다.
+  //
+  // 시간으로 막지 않는다 — "연 지 300ms 안의 클릭은 무시" 같은 규칙은 빠르게
+  // 두 번 조작하는 사람의 진짜 탭까지 함께 삼킨다. 시트 안에서 시작한 누름만
+  // 진짜로 친다.
+  function guardStrayClick(node, isPressed, markPressed) {
+    node.addEventListener("pointerdown", markPressed, true);
+    node.addEventListener("click", (e) => {
+      // 키보드로 누른 click 은 detail 이 0 이다. 이 경우 앞선 pointerdown 이 없다.
+      if (isPressed() || e.detail === 0) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
+  }
+
   function openSheet(options) {
     const host = clear(document.getElementById("sheet-root"));
     const panel = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" }, [
@@ -38,7 +55,17 @@
       el("div", { class: "sheet-body" }, options.body || []),
       options.actions ? el("div", { class: "sheet-actions" }, options.actions) : null,
     ]);
-    host.appendChild(el("div", { class: "scrim", onclick: closeSheet }));
+    const scrim = el("div", { class: "scrim" });
+
+    // 시트마다 새로 만드는 요소에만 건다. sheet-root 에 걸면 시트를 열 때마다
+    // 리스너가 쌓인다 - clear() 는 자식만 지우지 리스너를 걷어내지 않는다.
+    let pressed = false;
+    const mark = () => { pressed = true; };
+    guardStrayClick(scrim, () => pressed, mark);
+    guardStrayClick(panel, () => pressed, mark);
+    scrim.addEventListener("click", closeSheet);
+
+    host.appendChild(scrim);
     host.appendChild(panel);
     document.body.classList.add("sheet-open");
     return panel;

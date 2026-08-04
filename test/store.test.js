@@ -95,6 +95,41 @@ test("sumPlanned / sumDone", () => {
   assert.equal(store.sumDone([]), 0);
 });
 
+test("isStudy: 과목을 고른 블록만 공부다", () => {
+  assert.equal(store.isStudy(B(300, 360)), true);
+  assert.equal(store.isStudy(B(300, 360, { subjectId: null })), false);
+  assert.equal(store.isStudy(B(300, 360, { subjectId: "" })), false);
+  assert.equal(store.isStudy(null), false);
+});
+
+test("sumPlanned / sumDone: 과목 없음 블록은 세지 않는다", () => {
+  const none = (s, e, extra) => B(s, e, Object.assign({ subjectId: null }, extra));
+  const blocks = [B(300, 360, { done: true }), none(400, 520, { done: true }), none(600, 660)];
+  assert.equal(store.sumPlanned(blocks), 60, "과목 있는 60분만 목표에 든다");
+  assert.equal(store.sumDone(blocks), 60, "과목 없음은 완료해도 실제 시간이 아니다");
+  assert.equal(store.sumPlanned([none(300, 480)]), 0);
+  assert.equal(store.sumDone([none(300, 480, { done: true })]), 0);
+});
+
+test("doneRatio: 과목 없음 블록은 분모에도 분자에도 안 든다", () => {
+  const study = (s, e, done) => B(s, e, { done });
+  const none = (s, e, done) => B(s, e, { subjectId: null, done });
+  // 과목 없음 120분을 끝내도 달성률은 움직이지 않는다.
+  assert.equal(store.doneRatio([study(300, 360, true), none(400, 520, true)]), 100);
+  assert.equal(store.doneRatio([study(300, 360, false), none(400, 520, true)]), 0);
+  // 과목 없음뿐이면 계획이 0이라 나눌 수 없다.
+  assert.equal(store.doneRatio([none(300, 480, true)]), 0);
+  // 과목 없음이 분모를 부풀리지 않는다 - 없었다면 50%가 될 조합이다.
+  assert.equal(store.doneRatio([study(300, 360, true), study(400, 460, false), none(600, 900)]), 50);
+});
+
+test("sumUncounted: 합계에서 빠진 시간을 따로 센다", () => {
+  const none = (s, e) => B(s, e, { subjectId: null });
+  assert.equal(store.sumUncounted([B(300, 360), none(400, 460), none(600, 690)]), 60 + 90);
+  assert.equal(store.sumUncounted([B(300, 360)]), 0);
+  assert.equal(store.sumUncounted([]), 0);
+});
+
 test("sanitizeState: 정상 데이터는 그대로", () => {
   const raw = {
     version: 1,
@@ -301,7 +336,7 @@ test("sanitizeState: todoId가 없는 옛 데이터는 null이 된다", () => {
 });
 
 test("doneRatio: 계획 대비 실제", () => {
-  const b = (s, e, done) => ({ id: "b" + s, subjectId: null, text: "", start: s, end: e, done, todoId: null });
+  const b = (s, e, done) => ({ id: "b" + s, subjectId: "kor", text: "", start: s, end: e, done, todoId: null });
   assert.equal(store.doneRatio([]), 0, "계획이 없으면 0");
   assert.equal(store.doneRatio([b(300, 360, false)]), 0);
   assert.equal(store.doneRatio([b(300, 360, true)]), 100);

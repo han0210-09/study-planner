@@ -5,6 +5,9 @@
   const subjectsApi = SP.subjects;
   const ui = SP.ui;
 
+  const LONG_PRESS_MS = 450;
+  const MOVE_TOLERANCE = 8;
+
   function whenLabel(own) {
     if (own.length === 0) return "미배정";
     if (own.length === 1) return dt.minutesToLabel(own[0].start) + "~" + dt.minutesToLabel(own[0].end);
@@ -148,6 +151,68 @@
     setTimeout(() => input.focus(), 50);
   }
 
+  // 길게 눌러 지우는 길은 실수로 눌리기 쉽다. 그래서 배정된 시간이 없어도 한 번
+  // 묻는다. 시트에서 삭제 버튼을 누르는 건 이미 의도가 분명하므로 그쪽은 그대로 둔다.
+  async function confirmRemove(dateKey, todoId, onChange) {
+    const todo = SP.app.store().getDay(dateKey).todos.find((t) => t.id === todoId);
+    if (!todo) return;
+    const own = SP.link.blocksOfTodo(SP.app.store().getDay(dateKey), todoId);
+    const ok = await ui.confirmDialog(
+      "'" + todo.text + "' 을(를) 지웁니다." +
+      (own.length ? "\n타임테이블에 배정된 " + own.length + "개 블록도 함께 사라집니다." : "")
+    );
+    if (!ok) return;
+    // 묻는 동안 시간이 흘렀다. 그 사이의 편집을 덮어쓰지 않도록 다시 읽는다.
+    SP.app.saveDay(dateKey, SP.link.removeTodo(SP.app.store().getDay(dateKey), todoId));
+    onChange();
+  }
+
+  // 체크박스와 순서 화살표는 제스처에서 뺀다. 체크는 이 화면에서 가장 자주 누르는
+  // 곳이라, 손이 잠깐 머무는 것만으로 삭제를 묻는 창이 뜨면 쓰기 어려워진다.
+  function inControls(target) {
+    return !!target.closest(".todo-check-hit, .todo-order");
+  }
+
+  // 짧게 누르면 편집, 길게 누르면 삭제. touch-action 은 건드리지 않는다 — 세로
+  // 스크롤을 막을 이유가 없고, 손가락이 움직이면 브라우저가 스크롤을 가져가면서
+  // pointercancel 을 보내 타이머가 접힌다.
+  function attachRowGestures(node, dateKey, todoId, onChange) {
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let fired = false;
+    let moved = false;
+    let armed = false;
+
+    const cancel = () => { clearTimeout(timer); timer = null; };
+
+    node.addEventListener("pointerdown", (e) => {
+      fired = false;
+      moved = false;
+      armed = !inControls(e.target);
+      if (!armed) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      timer = setTimeout(() => { fired = true; confirmRemove(dateKey, todoId, onChange); }, LONG_PRESS_MS);
+    });
+    node.addEventListener("pointermove", (e) => {
+      if (moved || !armed) return;
+      if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+        moved = true;
+        cancel();
+      }
+    });
+    node.addEventListener("pointerup", () => {
+      cancel();
+      if (!armed || fired || moved) return;
+      openEditor(dateKey, todoId, onChange);
+    });
+    node.addEventListener("pointercancel", cancel);
+    node.addEventListener("pointerleave", cancel);
+    // 길게 누를 때 뜨는 운영체제의 텍스트 선택 메뉴를 막는다.
+    node.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
   function move(dateKey, todoId, delta, onChange) {
     const day = SP.app.store().getDay(dateKey);
     const todos = day.todos.slice();
@@ -167,7 +232,7 @@
 
     const rows = day.todos.map((todo, index) => {
       const own = SP.link.blocksOfTodo(day, todo.id);
-      return ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
+      const row = ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
         ui.el("span", {
           class: "todo-tag",
           text: subjectsApi.nameOf(subjects, todo.subjectId) || "-",
@@ -175,7 +240,10 @@
         }),
         // 배정 시각을 별도 열로 빼면 390px에서 할 일 이름이 눌린다. 이름 아래에
         // 붙이고 버튼 전체를 탭 영역으로 둔다.
-        ui.el("button", { class: "todo-text", onclick: () => openEditor(dateKey, todo.id, onChange) }, [
+        //
+        // 손가락으로 누르는 건 행 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
+        // 여기 click 은 키보드로 Enter 를 눌렀을 때만 남는다 — 그때는 detail 이 0 이다.
+        ui.el("button", { class: "todo-text", onclick: (e) => { if (e.detail === 0) openEditor(dateKey, todo.id, onChange); } }, [
           ui.el("span", { class: "todo-title", text: todo.text }),
           ui.el("span", { class: "todo-when" + (own.length ? "" : " todo-when-none"), text: whenLabel(own) }),
         ]),
@@ -193,6 +261,8 @@
           }),
         ]),
       ]);
+      attachRowGestures(row, dateKey, todo.id, onChange);
+      return row;
     });
 
     ui.clear(host).appendChild(
@@ -201,6 +271,10 @@
         day.todos.length
           ? ui.el("ul", { class: "todo-list" }, rows)
           : ui.el("p", { class: "empty", text: "할 일이 없습니다. 아래 버튼으로 추가하세요." }),
+        // 길게 누르는 동작은 눈에 보이지 않는다. 안내가 없으면 아무도 못 찾는다.
+        day.todos.length
+          ? ui.el("p", { class: "empty", text: "할 일을 길게 누르면 지웁니다. 배정된 시간도 함께 사라집니다." })
+          : null,
         ui.el("button", { class: "btn add-btn", text: "+ 할 일 추가", onclick: () => openEditor(dateKey, null, onChange) }),
       ])
     );

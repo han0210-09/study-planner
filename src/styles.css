@@ -133,7 +133,13 @@ button { font: inherit; color: inherit; }
 .event-type { font-size: 11px; color: var(--muted); }
 
 .todo-list { list-style: none; margin: 0 0 10px; padding: 0; }
-.todo-row { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+/* 길게 누르면 삭제다. user-select를 끄지 않으면 그동안 iOS가 텍스트를 잡아
+   복사 메뉴를 띄운다. touch-action은 pan-y로 둬야 목록을 그대로 스크롤할 수 있다. */
+.todo-row {
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+  touch-action: pan-y; user-select: none; -webkit-user-select: none;
+}
 .todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 /* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
    행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
@@ -177,6 +183,7 @@ button { font: inherit; color: inherit; }
 
 .totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
 .totals-label { color: var(--muted); font-size: 13px; }
+.totals-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 .totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .totals-fill { height: 100%; background: var(--accent); }
 

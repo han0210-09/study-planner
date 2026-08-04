@@ -86,12 +86,27 @@
     return { start: lo, end: hi };
   }
 
+  // 과목을 안 고른 블록은 공부로 세지 않는다. 밥 먹기·이동·쉬는 시간처럼
+  // 시간표에는 두고 싶지만 공부는 아닌 것이 여기 들어온다.
+  //
+  // 거르는 자리는 합계 함수 안이다. 목표시간·실제시간·달성률·달력이 모두 이
+  // 함수들을 거치므로, 화면마다 따로 거르면 어느 하나가 빠졌을 때 값이 어긋난다.
+  function isStudy(b) {
+    return !!(b && b.subjectId);
+  }
+
   function sumPlanned(blocks) {
-    return (blocks || []).reduce((sum, b) => sum + (b.end - b.start), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum + (b.end - b.start) : sum), 0);
   }
 
   function sumDone(blocks) {
-    return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) && b.done ? sum + (b.end - b.start) : sum), 0);
+  }
+
+  // 시간표에는 있는데 합계에서 빠진 시간. 왜 목표시간이 시간표보다 적은지
+  // 화면에서 설명하려면 이 값이 필요하다.
+  function sumUncounted(blocks) {
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum : sum + (b.end - b.start)), 0);
   }
 
   // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
@@ -242,7 +257,7 @@
   const api = {
     STORAGE_KEY, SCHEMA_VERSION, DEFAULT_SUBJECTS,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
+    limitRange, isStudy, sumPlanned, sumDone, sumUncounted, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};
