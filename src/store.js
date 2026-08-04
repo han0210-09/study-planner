@@ -132,12 +132,20 @@
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
         const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
-          text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end, done: !!(b && b.done) };
+          text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
+          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);
       }
       day.blocks = accepted.sort((a, b) => a.start - b.start);
+
+      // 가리키는 할 일이 없는 링크는 끊는다. 블록은 살린다 — 시각 정보가 더 아깝다.
+      // JSON 가져오기로 얼마든지 들어올 수 있는 모양이다.
+      const todoIds = new Set(day.todos.map((t) => t.id));
+      for (const b of day.blocks) {
+        if (b.todoId && !todoIds.has(b.todoId)) { mark(); b.todoId = null; }
+      }
       if (isDayEmpty(day)) continue;
       days[key] = day;
     }

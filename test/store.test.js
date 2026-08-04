@@ -258,3 +258,44 @@ test("sanitizeState: 과목 목록이 비면 기본 과목으로 되돌린다", 
   const r2 = store.sanitizeState({ version: 1, settings: { subjects: [] }, days: {}, events: [] });
   assert.equal(r2.state.settings.subjects.length, store.DEFAULT_SUBJECTS.length);
 });
+
+test("sanitizeState: todoId를 보존한다", () => {
+  const r = store.sanitizeState({
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#fff" }] },
+    days: { "2026-08-04": {
+      todos: [{ id: "t1", text: "수학", done: false }],
+      blocks: [{ id: "b1", start: 300, end: 360, todoId: "t1" }],
+    } },
+    events: [],
+  });
+  assert.equal(r.state.days["2026-08-04"].blocks[0].todoId, "t1");
+  assert.equal(r.recovered, false);
+});
+
+// JSON 가져오기로 깨진 링크가 들어올 수 있다. 블록은 살린다 — 시각 정보가 더 아깝다.
+test("sanitizeState: 가리키는 할 일이 없으면 링크만 끊는다", () => {
+  const r = store.sanitizeState({
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#fff" }] },
+    days: { "2026-08-04": {
+      todos: [],
+      blocks: [{ id: "b1", start: 300, end: 360, todoId: "없는id" }],
+    } },
+    events: [],
+  });
+  assert.equal(r.state.days["2026-08-04"].blocks.length, 1);
+  assert.equal(r.state.days["2026-08-04"].blocks[0].todoId, null);
+  assert.equal(r.recovered, true);
+});
+
+test("sanitizeState: todoId가 없는 옛 데이터는 null이 된다", () => {
+  const r = store.sanitizeState({
+    version: 1,
+    settings: { subjects: [{ id: "kor", name: "국어", color: "#fff" }] },
+    days: { "2026-08-04": { todos: [], blocks: [{ id: "b1", start: 300, end: 360 }] } },
+    events: [],
+  });
+  assert.equal(r.state.days["2026-08-04"].blocks[0].todoId, null);
+  assert.equal(r.recovered, false);
+});
