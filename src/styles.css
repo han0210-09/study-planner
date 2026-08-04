@@ -7,6 +7,7 @@
   --accent: #4C6EF5;
   --danger: #E03131;
   --radius: 12px;
+  --tt-row: 44px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -162,51 +163,77 @@ button { font: inherit; color: inherit; }
 
 .memo { width: 100%; min-height: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
-/* ---------- 타임테이블 ---------- */
-.tt-track {
-  position: relative; margin-left: 46px; margin-top: 8px;
-  background: var(--surface); border-left: 1px solid var(--line);
-  touch-action: pan-y; user-select: none;
+/* ---------- 타임테이블 (한 행 = 한 시간, 한 칸 = 5분) ---------- */
+.tt-wrap { display: flex; margin-top: 8px; user-select: none; }
+.tt-labels { flex: 0 0 34px; }
+.tt-label-cell {
+  height: var(--tt-row); display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 2px 6px 0 0; font-size: 10px; color: var(--muted); line-height: 1;
 }
-.tt-hour { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
-.tt-hour-label { position: absolute; left: -46px; top: -8px; width: 42px; text-align: right; font-size: 11px; color: var(--muted); }
-.tt-tick { position: absolute; left: 0; width: 5px; border-top: 1px solid #F1F3F5; }
-.tt-tick-half { width: 10px; border-top-color: #E9ECEF; }
+.tt-cells {
+  flex: 1; min-width: 0; display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: var(--tt-row);
+  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  touch-action: pan-y;
+}
+/* 눈금은 테두리가 아니라 배경 그라디언트로 그린다. 격자 아이템에 border 를 주면
+   box-sizing 때문에 행 높이가 옆의 시각 라벨과 1px 어긋난다. */
+.tt-row {
+  grid-column: 1 / -1;
+  background-image:
+    linear-gradient(to bottom, var(--line) 0 1px, transparent 1px),
+    repeating-linear-gradient(to right, #E9ECEF 0 1px, transparent 1px 50%),
+    repeating-linear-gradient(to right, #F1F3F5 0 1px, transparent 1px calc(100% / 12));
+}
 
-.tt-block {
-  position: absolute; left: 2px; right: 2px; min-height: 10px;
-  border-radius: 6px; overflow: hidden; display: flex; align-items: stretch;
-  filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+.tt-seg {
+  display: flex; align-items: stretch; overflow: hidden;
+  margin: 2px 0; filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.tt-block-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
-/* 블록 폭은 트랙 전체(390px 화면에서 약 330px)라 44px을 떼어줘도 내용이 충분히 남는다.
-   세로는 블록 높이에 갇히므로(30분 = 28px) 짧은 블록은 편집 시트의 완료 토글로 처리한다. */
+.tt-seg-first { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+.tt-seg-last { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+.tt-seg-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.tt-seg-dragging { opacity: .3; }
+
+/* 조각이 한 칸(약 25px)일 수도 있으므로 44px 을 고정폭으로 못 준다. 줄어들게 두고,
+   짧은 블록의 완료 처리는 편집 시트의 완료 토글이 맡는다. */
 .tt-check {
-  flex: 0 0 44px; border: 0; background: rgba(255,255,255,.5);
+  flex: 0 1 44px; min-width: 16px; border: 0; background: rgba(255,255,255,.5);
   font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
 }
-.tt-block-done .tt-check { background: rgba(255,255,255,.75); }
+.tt-seg-done .tt-check { background: rgba(255,255,255,.75); }
 .tt-body {
-  flex: 1; border: 0; background: transparent; cursor: pointer;
+  flex: 1 1 auto; min-width: 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
-  padding: 0 6px; overflow: hidden; text-align: left;
+  padding: 0 4px; overflow: hidden; text-align: left;
 }
 .tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.tt-time { font-size: 9px; opacity: .65; }
-.tt-handle { position: absolute; left: 0; right: 0; height: 14px; cursor: ns-resize; touch-action: none; }
-.tt-handle-top { top: -4px; }
-.tt-handle-bottom { bottom: -4px; }
+.tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
+
+.tt-handle { position: absolute; top: 0; bottom: 0; width: 14px; cursor: ew-resize; touch-action: none; }
+.tt-handle-start { left: -3px; }
+.tt-handle-end { right: -3px; }
 
 .tt-ghost {
-  position: absolute; left: 2px; right: 2px;
   background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
-  border-radius: 6px; pointer-events: none;
+  margin: 2px 0; pointer-events: none; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
 }
-.tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.85); padding: 1px 5px; border-radius: 4px; }
+.tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.85); padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
 
-.tt-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--danger); pointer-events: none; }
-.tt-now::before { content: ""; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.tt-plus {
+  align-self: center; justify-self: center;
+  width: 26px; height: 26px; padding: 0; line-height: 1;
+  border: 1.5px dashed var(--accent); border-radius: 50%;
+  background: rgba(76,110,245,.10); color: var(--accent);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+
+.tt-now-row { grid-column: 1 / -1; position: relative; pointer-events: none; }
+.tt-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger); }
+.tt-now::before { content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
 .editor-range { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; margin-bottom: 12px; }
 .editor-duration { font-size: 13px; color: var(--muted); }
