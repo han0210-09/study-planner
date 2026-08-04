@@ -763,10 +763,17 @@ button { font: inherit; color: inherit; }
     return { todos, blocks };
   }
 
-  // 블록을 지워도 할 일은 남는다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+  // 블록을 지우면 연결된 할 일도 사라진다. 삭제는 양쪽 대칭이다.
+  //
+  // 단, 그 할 일의 마지막 블록일 때만이다. 아침·저녁으로 나눠 잡아둔 할 일에서
+  // 하나만 지웠는데 할 일까지 지워버리면, 손대지도 않은 나머지 블록이 딸려
+  // 사라진다.
   function removeBlock(day, blockId) {
+    const target = day.blocks.find((b) => b.id === blockId);
     const blocks = day.blocks.filter((b) => b.id !== blockId);
-    return { todos: recompute(day.todos, blocks), blocks };
+    const orphaned = target && target.todoId && !blocks.some((b) => b.todoId === target.todoId);
+    const todos = orphaned ? day.todos.filter((t) => t.id !== target.todoId) : day.todos;
+    return { todos: recompute(todos, blocks), blocks };
   }
 
   // 할 일을 지우면 블록도 사라진다. 할 일이 없어졌는데 시간표에 남아 있으면
@@ -1942,7 +1949,7 @@ button { font: inherit; color: inherit; }
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
-          // 할 일은 남긴다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+          // 연결된 할 일도 함께 사라진다(그 할 일의 마지막 블록일 때만).
           SP.app.saveDay(dateKey, SP.link.removeBlock(SP.app.store().getDay(dateKey), blockId));
           ui.closeSheet(); onChange();
         } }),

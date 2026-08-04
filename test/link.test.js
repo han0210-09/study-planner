@@ -48,12 +48,26 @@ test("setTodoDone: 블록이 없는 할 일도 스스로 체크된다", () => {
   assert.equal(r.todos[0].done, true);
 });
 
-test("removeBlock: 할 일은 남고 미배정이 된다", () => {
-  const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" })]);
+test("removeBlock: 마지막 블록이면 할 일도 함께 사라진다", () => {
+  const d = day([T("t1"), T("t2")], [B("b1", 300, 360, { todoId: "t1" })]);
   const r = link.removeBlock(d, "b1");
   assert.equal(r.blocks.length, 0);
-  assert.equal(r.todos.length, 1);
-  assert.deepEqual(link.blocksOfTodo(r, "t1"), []);
+  assert.deepEqual(r.todos.map((t) => t.id), ["t2"]);
+});
+
+// 하나만 지웠다고 할 일까지 지우면 손대지도 않은 나머지 블록이 딸려 사라진다.
+test("removeBlock: 다른 블록이 남아 있으면 할 일은 유지된다", () => {
+  const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" }), B("b2", 400, 460, { todoId: "t1" })]);
+  const r = link.removeBlock(d, "b1");
+  assert.deepEqual(r.todos.map((t) => t.id), ["t1"]);
+  assert.deepEqual(r.blocks.map((b) => b.id), ["b2"]);
+});
+
+test("removeBlock: 연결 없는 블록은 할 일을 건드리지 않는다", () => {
+  const d = day([T("t1")], [B("b1", 300, 360)]);
+  const r = link.removeBlock(d, "b1");
+  assert.equal(r.blocks.length, 0);
+  assert.deepEqual(r.todos.map((t) => t.id), ["t1"]);
 });
 
 test("removeTodo: 연결된 블록도 함께 사라진다", () => {

@@ -102,7 +102,7 @@
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
-          // 할 일은 남긴다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+          // 연결된 할 일도 함께 사라진다(그 할 일의 마지막 블록일 때만).
           SP.app.saveDay(dateKey, SP.link.removeBlock(SP.app.store().getDay(dateKey), blockId));
           ui.closeSheet(); onChange();
         } }),
