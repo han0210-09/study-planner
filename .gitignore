@@ -3,3 +3,6 @@ node_modules/
 Thumbs.db
 desktop.ini
 .superpowers/
+
+# 문서는 이 컴퓨터에만 둔다. 파일은 그대로 두고 깃 추적에서만 뺀다.
+*.md
