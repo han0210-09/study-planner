@@ -218,6 +218,7 @@ button { font: inherit; color: inherit; }
 .tt-seg-last { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .tt-seg-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 .tt-seg-dragging { opacity: .3; }
+.merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
 
 /* 조각이 한 칸(약 25px)일 수도 있으므로 44px 을 고정폭으로 못 준다. 줄어들게 두고,
    짧은 블록의 완료 처리는 편집 시트의 완료 토글이 맡는다. */

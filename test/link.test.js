@@ -205,3 +205,101 @@ test("firstFreeSlot: 정렬되지 않은 배열도 처리한다", () => {
   const blocks = [B("b2", 480, 540), B("b1", 300, 420)];
   assert.deepEqual(link.firstFreeSlot(blocks, 60), { start: 420, end: 480 });
 });
+
+// ---- 같은 과목·내용 묶기 ----
+
+test("commitBlock new: 같은 과목·내용의 할 일이 있으면 거기 붙는다", () => {
+  const d = day([T("t1", { text: "수1 미적", subjectId: "math" })], [B("b1", 360, 420, { todoId: "t1" })]);
+  const r = link.commitBlock(d, B("b2", 1260, 1320, { subjectId: "math" }), "new", "수1 미적");
+  assert.equal(r.todos.length, 1, "할 일이 늘면 안 된다");
+  assert.equal(r.blocks.find((b) => b.id === "b2").todoId, "t1");
+  assert.equal(link.blocksOfTodo(r, "t1").length, 2);
+});
+
+test("commitBlock new: 과목이 다르면 따로 만든다", () => {
+  const d = day([T("t1", { text: "정리", subjectId: "math" })], []);
+  const r = link.commitBlock(d, B("b2", 360, 420, { subjectId: "eng" }), "new", "정리");
+  assert.equal(r.todos.length, 2);
+});
+
+test("commitBlock new: 내용이 다르면 따로 만든다", () => {
+  const d = day([T("t1", { text: "수1 미적", subjectId: "math" })], []);
+  const r = link.commitBlock(d, B("b2", 360, 420, { subjectId: "math" }), "new", "수1 확통");
+  assert.equal(r.todos.length, 2);
+});
+
+test("mergeAdjacent: 맞닿고 같은 내용이면 합친다", () => {
+  const d = day([], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적" }),
+    B("b2", 420, 480, { subjectId: "math", text: "미적" }),
+  ]);
+  const r = link.mergeAdjacent(d);
+  assert.equal(r.merged, 1);
+  assert.equal(r.blocks.length, 1);
+  assert.deepEqual([r.blocks[0].start, r.blocks[0].end], [360, 480]);
+});
+
+test("mergeAdjacent: 셋이 이어지면 하나로", () => {
+  const d = day([], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적" }),
+    B("b2", 420, 480, { subjectId: "math", text: "미적" }),
+    B("b3", 480, 540, { subjectId: "math", text: "미적" }),
+  ]);
+  const r = link.mergeAdjacent(d);
+  assert.equal(r.merged, 2);
+  assert.deepEqual([r.blocks[0].start, r.blocks[0].end], [360, 540]);
+});
+
+test("mergeAdjacent: 떨어져 있으면 안 합친다", () => {
+  const d = day([], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적" }),
+    B("b2", 425, 480, { subjectId: "math", text: "미적" }),
+  ]);
+  assert.equal(link.mergeAdjacent(d).merged, 0);
+});
+
+test("mergeAdjacent: 과목이나 내용이 다르면 안 합친다", () => {
+  const d = day([], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적" }),
+    B("b2", 420, 480, { subjectId: "math", text: "확통" }),
+    B("b3", 480, 540, { subjectId: "eng", text: "확통" }),
+  ]);
+  assert.equal(link.mergeAdjacent(d).merged, 0);
+});
+
+// 둘 다 끝냈을 때만 합친 것도 끝난 것이다.
+test("mergeAdjacent: 완료는 둘 다 끝났을 때만", () => {
+  const base = (d1, d2) => day([], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적", done: d1 }),
+    B("b2", 420, 480, { subjectId: "math", text: "미적", done: d2 }),
+  ]);
+  assert.equal(link.mergeAdjacent(base(true, true)).blocks[0].done, true);
+  assert.equal(link.mergeAdjacent(base(true, false)).blocks[0].done, false);
+});
+
+test("mergeAdjacent: 흡수된 쪽의 중복 할 일은 사라진다", () => {
+  const d = day(
+    [T("t1", { text: "미적", subjectId: "math" }), T("t2", { text: "미적", subjectId: "math" })],
+    [
+      B("b1", 360, 420, { subjectId: "math", text: "미적", todoId: "t1" }),
+      B("b2", 420, 480, { subjectId: "math", text: "미적", todoId: "t2" }),
+    ]
+  );
+  const r = link.mergeAdjacent(d);
+  assert.deepEqual(r.todos.map((t) => t.id), ["t1"]);
+  assert.equal(r.blocks[0].todoId, "t1");
+});
+
+test("mergeAdjacent: 배정 없는 할 일은 건드리지 않는다", () => {
+  const d = day([T("t1"), T("free")], [
+    B("b1", 360, 420, { subjectId: "math", text: "미적", todoId: "t1" }),
+    B("b2", 420, 480, { subjectId: "math", text: "미적", todoId: "t1" }),
+  ]);
+  const r = link.mergeAdjacent(d);
+  assert.deepEqual(r.todos.map((t) => t.id), ["t1", "free"]);
+});
+
+test("mergeAdjacent: 합칠 게 없으면 merged 0", () => {
+  assert.equal(link.mergeAdjacent(day([], [])).merged, 0);
+  assert.equal(link.mergeAdjacent(day([T("t1")], [B("b1", 360, 420)])).merged, 0);
+});

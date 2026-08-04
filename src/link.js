@@ -59,9 +59,16 @@
     const next = { ...block };
 
     if (todoChoice === "new") {
-      const todo = { id: store.newId(), subjectId: next.subjectId || null, text: todoText, done: !!next.done };
-      todos.push(todo);
-      next.todoId = todo.id;
+      // 과목·내용이 같은 할 일이 이미 있으면 새로 만들지 않고 거기에 붙인다.
+      // 그러지 않으면 아침·저녁으로 나눠 잡을 때마다 똑같은 이름의 할 일이 쌓인다.
+      const twin = todos.find((t) => t.text === todoText && (t.subjectId || null) === (next.subjectId || null));
+      if (twin) {
+        next.todoId = twin.id;
+      } else {
+        const todo = { id: store.newId(), subjectId: next.subjectId || null, text: todoText, done: !!next.done };
+        todos.push(todo);
+        next.todoId = todo.id;
+      }
     } else if (todoChoice && todoChoice !== "none") {
       next.todoId = todoChoice;
       todos = todos.map((t) =>
@@ -130,9 +137,40 @@
     return { start: widest.start, end: widest.end };
   }
 
+  // 과목·내용이 같고 맞닿은 블록을 한 덩어리로 만든다.
+  //
+  // 자동으로 하면 안 된다. ⊕ 로 "이어서 하나 더" 만들고 같은 내용을 적는 순간
+  // 앞 블록에 흡수되어 나눠 잡은 의도가 사라진다. 사용자가 버튼을 누를 때만 한다.
+  //
+  // merged 는 흡수된 횟수다. 0이면 합칠 게 없다는 뜻이라 뷰가 버튼을 감춘다.
+  function mergeAdjacent(day) {
+    const out = [];
+    let merged = 0;
+    for (const b of sortBlocks(day.blocks || [])) {
+      const prev = out[out.length - 1];
+      const joins = prev && prev.end === b.start &&
+        (prev.subjectId || null) === (b.subjectId || null) &&
+        (prev.text || "") === (b.text || "");
+      if (!joins) { out.push({ ...b }); continue; }
+      prev.end = b.end;
+      // 둘 다 끝냈을 때만 합친 것도 끝난 것이다.
+      prev.done = prev.done && b.done;
+      if (!prev.todoId) prev.todoId = b.todoId || null;
+      merged++;
+    }
+
+    // 흡수되면서 블록을 전부 잃은 할 일은 같은 과목·내용의 중복이므로 지운다.
+    // 원래 블록이 없던 할 일(미배정)은 건드리지 않는다.
+    const live = new Set(out.map((b) => b.todoId).filter(Boolean));
+    const had = new Set((day.blocks || []).map((b) => b.todoId).filter(Boolean));
+    const todos = day.todos.filter((t) => !had.has(t.id) || live.has(t.id));
+
+    return { todos: recompute(todos, out), blocks: out, merged };
+  }
+
   const api = {
     blocksOfTodo, setBlockDone, setTodoDone, removeBlock, removeTodo,
-    commitBlock, commitTodo, firstFreeSlot,
+    commitBlock, commitTodo, firstFreeSlot, mergeAdjacent,
   };
 
   root.SP = root.SP || {};
