@@ -25,8 +25,9 @@ if (!/<\/head>/.test(html) || !/<\/body>/.test(html)) {
   process.exit(1);
 }
 
-// 캐시 이름을 내용 해시로 만든다. 시각으로 만들면 고친 게 없어도 빌드할 때마다
-// 캐시가 통째로 버려져서, 배포만 하고 아무것도 안 바꾼 날에도 폰이 전부 다시 받는다.
+// 이 값이 바뀌어야 브라우저가 sw.js 를 "새 워커"로 보고 install 을 다시 돌린다.
+// 시각이 아니라 내용 해시로 만든다 — 시각으로 하면 고친 게 없는 날 배포해도
+// 폰이 앱을 통째로 다시 받는다.
 const stamp = crypto.createHash("sha1").update(html).digest("hex").slice(0, 12);
 
 const ICONS = [
@@ -56,7 +57,15 @@ const manifest = {
 };
 
 const sw = `// 자동 생성 파일 - build-pwa.js 가 만든다. 직접 고치지 말 것.
-const CACHE = "study-planner-${stamp}";
+
+// 빌드 내용의 해시다. 쓰지는 않지만 이 파일을 바꿔놓는 게 목적이다 — sw.js 가
+// 한 바이트도 안 바뀌면 브라우저가 업데이트로 보지 않아 install 이 안 돈다.
+const BUILD = "${stamp}";
+
+// 이름은 빌드마다 바꾸지 않는다. 바꾸면, 물러나는 워커가 뒤늦게 끝낸 백그라운드
+// 쓰기(caches.open 은 없으면 만든다)가 새 워커가 방금 지운 옛 캐시를 되살린다.
+// 죽은 캐시가 폰에 그대로 쌓인다.
+const CACHE = "study-planner";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", ${ICONS.map((i) => JSON.stringify("./" + i.file)).join(", ")}];
 
 self.addEventListener("install", (event) => {
@@ -69,6 +78,8 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// 이름이 다른 캐시를 치운다. 지금은 이름이 고정이라 평소엔 지울 게 없고,
+// 예전에 이름에 해시를 붙여 배포했던 폰에서 한 번 청소되는 게 전부다.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
