@@ -30,15 +30,17 @@
   function monthSummary(state, year, month) {
     const first = year + "-" + String(month).padStart(2, "0") + "-01";
     let total = 0;
-    let achievementSum = 0;
-    let achievementDays = 0;
+    let ratioSum = 0;
+    let plannedDays = 0;
     for (let i = 0; i < monthDays(year, month); i++) {
       const day = state.days[dt.addDays(first, i)];
       if (!day) continue;
       total += storeApi.sumDone(day.blocks);
-      if (day.achievement > 0) { achievementSum += day.achievement; achievementDays++; }
+      // 계획을 세운 날만 평균에 넣는다. 아무것도 안 적은 날까지 0%로 세면
+      // 평균이 실제 공부량과 무관하게 낮아진다.
+      if (storeApi.sumPlanned(day.blocks) > 0) { ratioSum += storeApi.doneRatio(day.blocks); plannedDays++; }
     }
-    const avg = achievementDays ? Math.round(achievementSum / achievementDays) : 0;
+    const avg = plannedDays ? Math.round(ratioSum / plannedDays) : 0;
     return { total, avg };
   }
 
@@ -104,15 +106,15 @@
       : null;
 
     const day = ctx.state.days[key];
-    const achievement = day && day.achievement > 0
-      ? ui.el("div", { class: "cal-achieve", text: day.achievement + "%" })
+    const rate = day && storeApi.sumPlanned(day.blocks) > 0
+      ? ui.el("div", { class: "cal-achieve", text: storeApi.doneRatio(day.blocks) + "%" })
       : null;
 
     const cell = ui.el("div", { class: classes.join(" "), dataset: { date: key } }, [
       ui.el("div", { class: "cal-num", text: String(dt.parseDateKey(key).getDate()) }),
       ui.el("div", { class: "cal-badges" }, badges),
       bar,
-      achievement,
+      rate,
     ]);
     attachLongPress(cell, key);
     return cell;
@@ -159,7 +161,7 @@
         ui.el("div", { class: "cal-grid" }, cells),
         ui.el("div", { class: "cal-summary" }, [
           ui.el("span", { text: "이번 달 공부 " + dt.formatDuration(summary.total) }),
-          ui.el("span", { text: "평균 달성도 " + summary.avg + "%" }),
+          ui.el("span", { text: "평균 달성률 " + summary.avg + "%" }),
         ]),
       ])
     );

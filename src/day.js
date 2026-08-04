@@ -29,22 +29,18 @@
     ]);
   }
 
-  function achievementCard(dateKey) {
+  // 달성률은 손으로 매기지 않는다. 계획한 시간 중 실제로 끝낸 비율이므로
+  // 블록의 완료 체크에서 그대로 나온다.
+  function rateCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
-    const value = ui.el("span", { class: "achieve-value", text: day.achievement + "%" });
-    const slider = ui.el("input", {
-      type: "range", min: "0", max: "100", step: "5", value: String(day.achievement), class: "achieve-slider",
-      oninput: (e) => { value.textContent = e.target.value + "%"; },
-      onchange: (e) => {
-        SP.app.store().setDay(dateKey, { achievement: Number(e.target.value) });
-        SP.app.persist();
-      },
-    });
+    const ratio = storeApi.doneRatio(day.blocks);
     return ui.el("section", { class: "card" }, [
-      ui.el("div", { class: "achieve-head" }, [ui.el("h2", { class: "card-title", text: "학습 성취도" }), value]),
-      slider,
-      ui.el("div", { class: "achieve-scale" }, [
-        ui.el("span", { text: "0%" }), ui.el("span", { text: "50%" }), ui.el("span", { text: "100%" }),
+      ui.el("div", { class: "achieve-head" }, [
+        ui.el("h2", { class: "card-title", text: "달성률" }),
+        ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+      ]),
+      ui.el("div", { class: "totals-bar" }, [
+        ui.el("div", { class: "totals-fill", style: { width: ratio + "%" } }),
       ]),
     ]);
   }
@@ -64,24 +60,18 @@
     ]);
   }
 
+  // 달성률은 맨 위 카드가 맡는다. 여기서는 시간만 보여준다.
   function totalsCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
-    const planned = storeApi.sumPlanned(day.blocks);
-    const done = storeApi.sumDone(day.blocks);
-    const ratio = planned > 0 ? Math.round((done / planned) * 100) : 0;
     return ui.el("section", { class: "card totals" }, [
       ui.el("div", { class: "totals-row" }, [
         ui.el("span", { class: "totals-label", text: "목표시간" }),
-        ui.el("strong", { text: dt.formatDuration(planned) }),
+        ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
       ]),
       ui.el("div", { class: "totals-row" }, [
         ui.el("span", { class: "totals-label", text: "실제시간" }),
-        ui.el("strong", { text: dt.formatDuration(done) }),
+        ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
       ]),
-      ui.el("div", { class: "totals-bar" }, [
-        ui.el("div", { class: "totals-fill", style: { width: Math.min(100, ratio) + "%" } }),
-      ]),
-      ui.el("div", { class: "totals-ratio", text: "달성률 " + ratio + "%" }),
     ]);
   }
 
@@ -103,13 +93,16 @@
     currentHost = host;
     currentKey = dateKey;
 
+    const rateHost = ui.el("div", {});
     const todoHost = ui.el("div", {});
     const timetableHost = ui.el("div", {});
     const totalsHost = ui.el("div", {});
 
     // 할 일과 블록이 한 쌍으로 움직이므로 둘을 따로 그리면 화면이 어긋난다.
-    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다.
+    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다. 달성률도 완료 체크에서
+    // 파생되므로 같이 다시 그려야 한다.
     const refresh = () => {
+      ui.clear(rateHost).appendChild(rateCard(dateKey));
       SP.todos.render(todoHost, dateKey, refresh);
       SP.timetable.render(timetableHost, dateKey, refresh);
       ui.clear(totalsHost).appendChild(totalsCard(dateKey));
@@ -118,7 +111,7 @@
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
         header(dateKey),
-        achievementCard(dateKey),
+        rateHost,
         eventsCard(dateKey),
         todoHost,
         timetableHost,

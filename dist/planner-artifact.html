@@ -143,8 +143,6 @@ button { font: inherit; color: inherit; }
 
 .achieve-head { display: flex; justify-content: space-between; align-items: baseline; }
 .achieve-value { font-size: 18px; font-weight: 700; }
-.achieve-slider { width: 100%; margin: 4px 0; }
-.achieve-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 
 .event-list { list-style: none; margin: 0; padding: 0; }
 .event-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -200,7 +198,6 @@ button { font: inherit; color: inherit; }
 .totals-label { color: var(--muted); font-size: 13px; }
 .totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .totals-fill { height: 100%; background: var(--accent); }
-.totals-ratio { text-align: right; font-size: 12px; color: var(--muted); margin-top: 4px; }
 
 .memo { width: 100%; min-height: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
@@ -520,6 +517,14 @@ button { font: inherit; color: inherit; }
     return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
   }
 
+  // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
+  // 여기 한 곳에서만 계산한다. 계획이 없으면 나눌 수 없으니 0이다.
+  function doneRatio(blocks) {
+    const planned = sumPlanned(blocks);
+    if (planned <= 0) return 0;
+    return Math.min(100, Math.round((sumDone(blocks) / planned) * 100));
+  }
+
   function sanitizeState(raw) {
     // 저장된 데이터가 아예 없는 첫 실행은 "복구"가 아니다. 구분하지 않으면 앱을 처음
     // 켠 사용자에게 매번 데이터 손상 경고 배너가 뜬다. fresh일 때는 기본값을 몇 개
@@ -660,7 +665,7 @@ button { font: inherit; color: inherit; }
   const api = {
     STORAGE_KEY, SCHEMA_VERSION, DEFAULT_SUBJECTS,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, sumPlanned, sumDone, sanitizeState, createStore,
+    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};
@@ -2541,22 +2546,18 @@ button { font: inherit; color: inherit; }
     ]);
   }
 
-  function achievementCard(dateKey) {
+  // 달성률은 손으로 매기지 않는다. 계획한 시간 중 실제로 끝낸 비율이므로
+  // 블록의 완료 체크에서 그대로 나온다.
+  function rateCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
-    const value = ui.el("span", { class: "achieve-value", text: day.achievement + "%" });
-    const slider = ui.el("input", {
-      type: "range", min: "0", max: "100", step: "5", value: String(day.achievement), class: "achieve-slider",
-      oninput: (e) => { value.textContent = e.target.value + "%"; },
-      onchange: (e) => {
-        SP.app.store().setDay(dateKey, { achievement: Number(e.target.value) });
-        SP.app.persist();
-      },
-    });
+    const ratio = storeApi.doneRatio(day.blocks);
     return ui.el("section", { class: "card" }, [
-      ui.el("div", { class: "achieve-head" }, [ui.el("h2", { class: "card-title", text: "학습 성취도" }), value]),
-      slider,
-      ui.el("div", { class: "achieve-scale" }, [
-        ui.el("span", { text: "0%" }), ui.el("span", { text: "50%" }), ui.el("span", { text: "100%" }),
+      ui.el("div", { class: "achieve-head" }, [
+        ui.el("h2", { class: "card-title", text: "달성률" }),
+        ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+      ]),
+      ui.el("div", { class: "totals-bar" }, [
+        ui.el("div", { class: "totals-fill", style: { width: ratio + "%" } }),
       ]),
     ]);
   }
@@ -2576,24 +2577,18 @@ button { font: inherit; color: inherit; }
     ]);
   }
 
+  // 달성률은 맨 위 카드가 맡는다. 여기서는 시간만 보여준다.
   function totalsCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
-    const planned = storeApi.sumPlanned(day.blocks);
-    const done = storeApi.sumDone(day.blocks);
-    const ratio = planned > 0 ? Math.round((done / planned) * 100) : 0;
     return ui.el("section", { class: "card totals" }, [
       ui.el("div", { class: "totals-row" }, [
         ui.el("span", { class: "totals-label", text: "목표시간" }),
-        ui.el("strong", { text: dt.formatDuration(planned) }),
+        ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
       ]),
       ui.el("div", { class: "totals-row" }, [
         ui.el("span", { class: "totals-label", text: "실제시간" }),
-        ui.el("strong", { text: dt.formatDuration(done) }),
+        ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
       ]),
-      ui.el("div", { class: "totals-bar" }, [
-        ui.el("div", { class: "totals-fill", style: { width: Math.min(100, ratio) + "%" } }),
-      ]),
-      ui.el("div", { class: "totals-ratio", text: "달성률 " + ratio + "%" }),
     ]);
   }
 
@@ -2615,13 +2610,16 @@ button { font: inherit; color: inherit; }
     currentHost = host;
     currentKey = dateKey;
 
+    const rateHost = ui.el("div", {});
     const todoHost = ui.el("div", {});
     const timetableHost = ui.el("div", {});
     const totalsHost = ui.el("div", {});
 
     // 할 일과 블록이 한 쌍으로 움직이므로 둘을 따로 그리면 화면이 어긋난다.
-    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다.
+    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다. 달성률도 완료 체크에서
+    // 파생되므로 같이 다시 그려야 한다.
     const refresh = () => {
+      ui.clear(rateHost).appendChild(rateCard(dateKey));
       SP.todos.render(todoHost, dateKey, refresh);
       SP.timetable.render(timetableHost, dateKey, refresh);
       ui.clear(totalsHost).appendChild(totalsCard(dateKey));
@@ -2630,7 +2628,7 @@ button { font: inherit; color: inherit; }
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
         header(dateKey),
-        achievementCard(dateKey),
+        rateHost,
         eventsCard(dateKey),
         todoHost,
         timetableHost,
@@ -2692,15 +2690,17 @@ button { font: inherit; color: inherit; }
   function monthSummary(state, year, month) {
     const first = year + "-" + String(month).padStart(2, "0") + "-01";
     let total = 0;
-    let achievementSum = 0;
-    let achievementDays = 0;
+    let ratioSum = 0;
+    let plannedDays = 0;
     for (let i = 0; i < monthDays(year, month); i++) {
       const day = state.days[dt.addDays(first, i)];
       if (!day) continue;
       total += storeApi.sumDone(day.blocks);
-      if (day.achievement > 0) { achievementSum += day.achievement; achievementDays++; }
+      // 계획을 세운 날만 평균에 넣는다. 아무것도 안 적은 날까지 0%로 세면
+      // 평균이 실제 공부량과 무관하게 낮아진다.
+      if (storeApi.sumPlanned(day.blocks) > 0) { ratioSum += storeApi.doneRatio(day.blocks); plannedDays++; }
     }
-    const avg = achievementDays ? Math.round(achievementSum / achievementDays) : 0;
+    const avg = plannedDays ? Math.round(ratioSum / plannedDays) : 0;
     return { total, avg };
   }
 
@@ -2766,15 +2766,15 @@ button { font: inherit; color: inherit; }
       : null;
 
     const day = ctx.state.days[key];
-    const achievement = day && day.achievement > 0
-      ? ui.el("div", { class: "cal-achieve", text: day.achievement + "%" })
+    const rate = day && storeApi.sumPlanned(day.blocks) > 0
+      ? ui.el("div", { class: "cal-achieve", text: storeApi.doneRatio(day.blocks) + "%" })
       : null;
 
     const cell = ui.el("div", { class: classes.join(" "), dataset: { date: key } }, [
       ui.el("div", { class: "cal-num", text: String(dt.parseDateKey(key).getDate()) }),
       ui.el("div", { class: "cal-badges" }, badges),
       bar,
-      achievement,
+      rate,
     ]);
     attachLongPress(cell, key);
     return cell;
@@ -2821,7 +2821,7 @@ button { font: inherit; color: inherit; }
         ui.el("div", { class: "cal-grid" }, cells),
         ui.el("div", { class: "cal-summary" }, [
           ui.el("span", { text: "이번 달 공부 " + dt.formatDuration(summary.total) }),
-          ui.el("span", { text: "평균 달성도 " + summary.avg + "%" }),
+          ui.el("span", { text: "평균 달성률 " + summary.avg + "%" }),
         ]),
       ])
     );

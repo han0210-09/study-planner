@@ -94,6 +94,14 @@
     return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
   }
 
+  // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
+  // 여기 한 곳에서만 계산한다. 계획이 없으면 나눌 수 없으니 0이다.
+  function doneRatio(blocks) {
+    const planned = sumPlanned(blocks);
+    if (planned <= 0) return 0;
+    return Math.min(100, Math.round((sumDone(blocks) / planned) * 100));
+  }
+
   function sanitizeState(raw) {
     // 저장된 데이터가 아예 없는 첫 실행은 "복구"가 아니다. 구분하지 않으면 앱을 처음
     // 켠 사용자에게 매번 데이터 손상 경고 배너가 뜬다. fresh일 때는 기본값을 몇 개
@@ -234,7 +242,7 @@
   const api = {
     STORAGE_KEY, SCHEMA_VERSION, DEFAULT_SUBJECTS,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, sumPlanned, sumDone, sanitizeState, createStore,
+    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};

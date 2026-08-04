@@ -299,3 +299,13 @@ test("sanitizeState: todoId가 없는 옛 데이터는 null이 된다", () => {
   assert.equal(r.state.days["2026-08-04"].blocks[0].todoId, null);
   assert.equal(r.recovered, false);
 });
+
+test("doneRatio: 계획 대비 실제", () => {
+  const b = (s, e, done) => ({ id: "b" + s, subjectId: null, text: "", start: s, end: e, done, todoId: null });
+  assert.equal(store.doneRatio([]), 0, "계획이 없으면 0");
+  assert.equal(store.doneRatio([b(300, 360, false)]), 0);
+  assert.equal(store.doneRatio([b(300, 360, true)]), 100);
+  assert.equal(store.doneRatio([b(300, 360, true), b(400, 460, false)]), 50);
+  // 3분의 1은 33%로 내림/반올림된다.
+  assert.equal(store.doneRatio([b(300, 360, true), b(400, 520, false)]), 33);
+});
