@@ -149,8 +149,15 @@ button { font: inherit; color: inherit; }
 .todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 /* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
    행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
-.todo-text { text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer; min-height: 44px; }
-.todo-done .todo-text { text-decoration: line-through; color: var(--muted); }
+.todo-text {
+  text-align: left; border: 0; background: transparent; padding: 6px 0; cursor: pointer;
+  min-height: 44px; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+}
+.todo-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.todo-when { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.todo-when-none { opacity: .6; }
+.todo-done .todo-title { text-decoration: line-through; color: var(--muted); }
 .todo-order { display: flex; flex-direction: column; }
 /* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
    세로로 각각 44px을 주면 목록 행이 88px이 되어 한 화면에 몇 줄 안 들어간다. */
@@ -527,12 +534,20 @@ button { font: inherit; color: inherit; }
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
         const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
-          text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end, done: !!(b && b.done) };
+          text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
+          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);
       }
       day.blocks = accepted.sort((a, b) => a.start - b.start);
+
+      // 가리키는 할 일이 없는 링크는 끊는다. 블록은 살린다 — 시각 정보가 더 아깝다.
+      // JSON 가져오기로 얼마든지 들어올 수 있는 모양이다.
+      const todoIds = new Set(day.todos.map((t) => t.id));
+      for (const b of day.blocks) {
+        if (b.todoId && !todoIds.has(b.todoId)) { mark(); b.todoId = null; }
+      }
       if (isDayEmpty(day)) continue;
       days[key] = day;
     }
@@ -706,6 +721,137 @@ button { font: inherit; color: inherit; }
 
   root.SP = root.SP || {};
   root.SP.grid = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
+  const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
+
+  function blocksOfTodo(day, todoId) {
+    if (!todoId) return [];
+    return (day.blocks || []).filter((b) => b.todoId === todoId);
+  }
+
+  // 할 일의 완료는 연결된 블록에서 파생된다. 블록이 여럿이면 전부 끝나야 완료다.
+  // 블록이 하나도 없는 할 일만 스스로 완료를 갖는다(체크박스로만 바뀐다).
+  function recompute(todos, blocks) {
+    return todos.map((t) => {
+      const own = blocks.filter((b) => b.todoId === t.id);
+      return own.length === 0 ? t : { ...t, done: own.every((b) => b.done) };
+    });
+  }
+
+  function setBlockDone(day, blockId, done) {
+    const blocks = day.blocks.map((b) => (b.id === blockId ? { ...b, done } : b));
+    return { todos: recompute(day.todos, blocks), blocks };
+  }
+
+  function setTodoDone(day, todoId, done) {
+    const blocks = day.blocks.map((b) => (b.todoId === todoId ? { ...b, done } : b));
+    const todos = day.todos.map((t) => (t.id === todoId ? { ...t, done } : t));
+    return { todos, blocks };
+  }
+
+  // 블록을 지워도 할 일은 남는다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+  function removeBlock(day, blockId) {
+    const blocks = day.blocks.filter((b) => b.id !== blockId);
+    return { todos: recompute(day.todos, blocks), blocks };
+  }
+
+  // 할 일을 지우면 블록도 사라진다. 할 일이 없어졌는데 시간표에 남아 있으면
+  // 그 시간이 무엇인지 알 방법이 없다.
+  function removeTodo(day, todoId) {
+    return {
+      todos: day.todos.filter((t) => t.id !== todoId),
+      blocks: day.blocks.filter((b) => b.todoId !== todoId),
+    };
+  }
+
+  function sortBlocks(blocks) {
+    return blocks.slice().sort((a, b) => a.start - b.start);
+  }
+
+  // 블록 편집 시트의 저장. todoChoice 는 "none" | "new" | 기존 할 일 id.
+  function commitBlock(day, block, todoChoice, todoText) {
+    let todos = day.todos.slice();
+    const next = { ...block };
+
+    if (todoChoice === "new") {
+      const todo = { id: store.newId(), subjectId: next.subjectId || null, text: todoText, done: !!next.done };
+      todos.push(todo);
+      next.todoId = todo.id;
+    } else if (todoChoice && todoChoice !== "none") {
+      next.todoId = todoChoice;
+      todos = todos.map((t) =>
+        t.id === todoChoice ? { ...t, subjectId: next.subjectId || null, text: todoText } : t
+      );
+    } else {
+      next.todoId = null;
+    }
+
+    const exists = day.blocks.some((b) => b.id === next.id);
+    const blocks = exists ? day.blocks.map((b) => (b.id === next.id ? next : b)) : day.blocks.concat([next]);
+    return { todos: recompute(todos, blocks), blocks: sortBlocks(blocks) };
+  }
+
+  // 할 일 편집 시트의 저장. range 는 {start,end} | null(배정 해제) | "keep"(그대로).
+  // 블록이 둘 이상이면 시트의 범위 하나로 표현할 수 없어 뷰가 "keep"을 넘긴다.
+  function commitTodo(day, todo, range) {
+    const exists = day.todos.some((t) => t.id === todo.id);
+    let todos = exists ? day.todos.map((t) => (t.id === todo.id ? { ...t, ...todo } : t)) : day.todos.concat([todo]);
+    let blocks = day.blocks.slice();
+
+    if (range && range !== "keep") {
+      const own = blocks.filter((b) => b.todoId === todo.id);
+      if (own.length === 0) {
+        blocks = blocks.concat([{
+          id: store.newId(), todoId: todo.id, subjectId: todo.subjectId || null,
+          text: todo.text, start: range.start, end: range.end, done: !!todo.done,
+        }]);
+      } else {
+        blocks = blocks.map((b) => (b.id === own[0].id ? { ...b, start: range.start, end: range.end } : b));
+      }
+    } else if (range === null) {
+      blocks = blocks.filter((b) => b.todoId !== todo.id);
+    }
+
+    // 연결된 쌍은 과목·내용이 항상 같다.
+    blocks = blocks.map((b) =>
+      b.todoId === todo.id ? { ...b, subjectId: todo.subjectId || null, text: todo.text } : b
+    );
+    return { todos: recompute(todos, blocks), blocks: sortBlocks(blocks) };
+  }
+
+  // 할 일에 시간을 배정할 때 제안할 구간. duration 이 들어가는 첫 빈 구간을 주고,
+  // 어디에도 안 들어가면 가장 넓은 빈 구간 전체를 준다. 5분도 안 남으면 null.
+  function firstFreeSlot(blocks, duration) {
+    const gaps = [];
+    let cursor = dt.DAY_START;
+    for (const b of sortBlocks(blocks || [])) {
+      if (b.start > cursor) gaps.push({ start: cursor, end: b.start });
+      cursor = Math.max(cursor, b.end);
+    }
+    if (cursor < dt.DAY_END) gaps.push({ start: cursor, end: dt.DAY_END });
+
+    for (const g of gaps) {
+      if (g.end - g.start >= duration) return { start: g.start, end: g.start + duration };
+    }
+    let widest = null;
+    for (const g of gaps) if (!widest || g.end - g.start > widest.end - widest.start) widest = g;
+    if (!widest || widest.end - widest.start < dt.SLOT) return null;
+    return { start: widest.start, end: widest.end };
+  }
+
+  const api = {
+    blocksOfTodo, setBlockDone, setTodoDone, removeBlock, removeTodo,
+    commitBlock, commitTodo, firstFreeSlot,
+  };
+
+  root.SP = root.SP || {};
+  root.SP.link = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
@@ -916,19 +1062,29 @@ button { font: inherit; color: inherit; }
     return (todos || []).map((t) => ({ subjectId: t.subjectId || null, text: t.text, done: false }));
   }
 
-  function cloneBlocks(blocks) {
+  // 페이로드에는 id 를 담지 않는다. 붙여넣을 때 id 가 전부 새로 발급되므로
+  // 연결은 위치 색인으로 옮긴다. todoId 를 그대로 담으면 붙여넣은 블록이
+  // 원본 날짜의 할 일을 가리켜 완료 체크가 엉뚱한 날에 반영된다.
+  function cloneBlocks(blocks, todos) {
+    const index = new Map((todos || []).map((t, i) => [t.id, i]));
     return (blocks || []).map((b) => ({
       subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
+      todoIndex: index.has(b.todoId) ? index.get(b.todoId) : -1,
     }));
   }
 
   function materialize(payload) {
-    return {
-      todos: (payload.todos || []).map((t) => ({ id: store.newId(), subjectId: t.subjectId || null, text: t.text, done: false })),
-      blocks: (payload.blocks || []).map((b) => ({
-        id: store.newId(), subjectId: b.subjectId || null, text: b.text || "", start: b.start, end: b.end, done: false,
-      })),
-    };
+    const todos = (payload.todos || []).map((t) => ({
+      id: store.newId(), subjectId: t.subjectId || null, text: t.text, done: false,
+    }));
+    const blocks = (payload.blocks || []).map((b) => {
+      const linked = typeof b.todoIndex === "number" && b.todoIndex >= 0 ? todos[b.todoIndex] : null;
+      return {
+        id: store.newId(), subjectId: b.subjectId || null, text: b.text || "",
+        start: b.start, end: b.end, done: false, todoId: linked ? linked.id : null,
+      };
+    });
+    return { todos, blocks };
   }
 
   function copyDay(state, key) {
@@ -937,7 +1093,7 @@ button { font: inherit; color: inherit; }
     if (day.todos.length === 0 && day.blocks.length === 0) return null;
     return {
       kind: "day", copiedAt: Date.now(),
-      payload: { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) },
+      payload: { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks, day.todos) },
     };
   }
 
@@ -953,7 +1109,7 @@ button { font: inherit; color: inherit; }
       const key = dt.addDays(start, i);
       const day = state.days[key];
       if (!day || (day.todos.length === 0 && day.blocks.length === 0)) continue;
-      byWeekday[String(dt.weekdayOf(key))] = { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks) };
+      byWeekday[String(dt.weekdayOf(key))] = { todos: cloneTodos(day.todos), blocks: cloneBlocks(day.blocks, day.todos) };
       found = true;
     }
     if (!found) return null;
@@ -1493,9 +1649,16 @@ button { font: inherit; color: inherit; }
   <script>
 (function (root) {
   const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
   const storeApi = SP.store;
   const subjectsApi = SP.subjects;
   const ui = SP.ui;
+
+  function whenLabel(own) {
+    if (own.length === 0) return "미배정";
+    if (own.length === 1) return dt.minutesToLabel(own[0].start) + "~" + dt.minutesToLabel(own[0].end);
+    return own.length + "개 배정";
+  }
 
   function openEditor(dateKey, todoId, onDone) {
     const state = SP.app.state();
@@ -1505,18 +1668,79 @@ button { font: inherit; color: inherit; }
     const select = subjectsApi.buildSelect(state.settings.subjects, existing ? existing.subjectId : null);
     const input = ui.el("input", { type: "text", value: existing ? existing.text : "", placeholder: "할 일을 입력하세요", maxlength: "80" });
 
+    const own = SP.link.blocksOfTodo(day, todoId);
+    // 블록이 둘 이상이면 시트의 범위 하나로 표현할 수 없다. 시각은 타임테이블에서
+    // 고치게 하고 여기서는 건드리지 않는다.
+    const many = own.length > 1;
+    const suggestion = own.length === 1
+      ? { start: own[0].start, end: own[0].end }
+      : SP.link.firstFreeSlot(day.blocks, 60);
+
+    let start = suggestion ? suggestion.start : 0;
+    let end = suggestion ? suggestion.end : 0;
+
+    const rangeLabel = ui.el("strong", {});
+    const durationLabel = ui.el("span", { class: "editor-duration" });
+    const assign = ui.el("input", { type: "checkbox", checked: own.length === 1 });
+    if (!suggestion) { assign.checked = false; assign.disabled = true; }
+
+    function redraw() {
+      if (suggestion) {
+        rangeLabel.textContent = dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end);
+        durationLabel.textContent = dt.formatDuration(end - start);
+      } else {
+        rangeLabel.textContent = "빈 시간이 없습니다";
+        durationLabel.textContent = "";
+      }
+      rangeBox.hidden = !assign.checked;
+    }
+
+    function nudge(which, delta) {
+      const nextStart = which === "start" ? dt.clampToDay(start + delta) : start;
+      const nextEnd = which === "end" ? dt.clampToDay(end + delta) : end;
+      if (nextEnd - nextStart < dt.SLOT) { ui.toast("블록은 최소 5분이어야 합니다."); return; }
+      const probe = { id: own.length ? own[0].id : null, start: nextStart, end: nextEnd };
+      if (storeApi.findOverlap(day.blocks, probe, probe.id)) { ui.toast("다른 블록과 겹칩니다."); return; }
+      start = nextStart; end = nextEnd;
+      redraw();
+    }
+
+    const stepper = (label, which) =>
+      ui.el("div", { class: "stepper" }, [
+        ui.el("span", { class: "stepper-label", text: label }),
+        ui.el("button", { class: "btn stepper-btn", text: "−5분", onclick: () => nudge(which, -dt.SLOT) }),
+        ui.el("button", { class: "btn stepper-btn", text: "+5분", onclick: () => nudge(which, dt.SLOT) }),
+      ]);
+
+    const rangeBox = ui.el("div", {}, [
+      ui.el("div", { class: "editor-range" }, [rangeLabel, durationLabel]),
+      stepper("시작", "start"),
+      stepper("종료", "end"),
+    ]);
+
+    assign.addEventListener("change", redraw);
+    redraw();
+
     const save = () => {
       const text = input.value.trim();
       if (!text) { ui.toast("할 일을 입력하세요."); return; }
-      const todos = day.todos.slice();
-      if (existing) {
-        const index = todos.findIndex((t) => t.id === todoId);
-        todos[index] = { ...existing, subjectId: select.value || null, text };
-      } else {
-        todos.push({ id: storeApi.newId(), subjectId: select.value || null, text, done: false });
+      const todo = existing
+        ? { ...existing, subjectId: select.value || null, text }
+        : { id: storeApi.newId(), subjectId: select.value || null, text, done: false };
+      const range = many ? "keep" : (assign.checked && suggestion ? { start, end } : null);
+      SP.app.saveDay(dateKey, SP.link.commitTodo(SP.app.store().getDay(dateKey), todo, range));
+      ui.closeSheet();
+      onDone();
+    };
+
+    const remove = async () => {
+      if (own.length > 0) {
+        const ok = await ui.confirmDialog(
+          "타임테이블에 배정된 " + own.length + "개 블록도 함께 지워집니다."
+        );
+        if (!ok) return;
       }
-      SP.app.store().setDay(dateKey, { todos });
-      SP.app.persist();
+      SP.app.saveDay(dateKey, SP.link.removeTodo(SP.app.store().getDay(dateKey), todoId));
       ui.closeSheet();
       onDone();
     };
@@ -1526,13 +1750,14 @@ button { font: inherit; color: inherit; }
       body: [
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), input]),
+        many
+          ? ui.el("p", { class: "empty", text: "타임테이블에 " + own.length + "개 배정되어 있습니다. 시각은 타임테이블에서 바꾸세요." })
+          : ui.el("label", { class: "editor-done" }, [assign, ui.el("span", { text: "타임테이블에 시간 배정" })]),
+        many ? null : rangeBox,
       ],
       actions: [
         existing
-          ? ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
-              SP.app.store().setDay(dateKey, { todos: day.todos.filter((t) => t.id !== todoId) });
-              SP.app.persist(); ui.closeSheet(); onDone();
-            } })
+          ? ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: remove })
           : ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
         ui.el("button", { class: "btn btn-primary", text: "저장", onclick: save }),
       ],
@@ -1557,14 +1782,20 @@ button { font: inherit; color: inherit; }
     const day = SP.app.store().getDay(dateKey);
     const subjects = state.settings.subjects;
 
-    const rows = day.todos.map((todo, index) =>
-      ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
+    const rows = day.todos.map((todo, index) => {
+      const own = SP.link.blocksOfTodo(day, todo.id);
+      return ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
         ui.el("span", {
           class: "todo-tag",
           text: subjectsApi.nameOf(subjects, todo.subjectId) || "-",
           style: { background: subjectsApi.colorOf(subjects, todo.subjectId) },
         }),
-        ui.el("button", { class: "todo-text", text: todo.text, onclick: () => openEditor(dateKey, todo.id, onChange) }),
+        // 배정 시각을 별도 열로 빼면 390px에서 할 일 이름이 눌린다. 이름 아래에
+        // 붙이고 버튼 전체를 탭 영역으로 둔다.
+        ui.el("button", { class: "todo-text", onclick: () => openEditor(dateKey, todo.id, onChange) }, [
+          ui.el("span", { class: "todo-title", text: todo.text }),
+          ui.el("span", { class: "todo-when" + (own.length ? "" : " todo-when-none"), text: whenLabel(own) }),
+        ]),
         ui.el("div", { class: "todo-order" }, [
           ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
           ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
@@ -1573,15 +1804,13 @@ button { font: inherit; color: inherit; }
           ui.el("input", {
             type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
             onchange: (e) => {
-              const todos = day.todos.map((t) => (t.id === todo.id ? { ...t, done: e.target.checked } : t));
-              SP.app.store().setDay(dateKey, { todos });
-              SP.app.persist();
+              SP.app.saveDay(dateKey, SP.link.setTodoDone(SP.app.store().getDay(dateKey), todo.id, e.target.checked));
               onChange();
             },
           }),
         ]),
-      ])
-    );
+      ]);
+    });
 
     ui.clear(host).appendChild(
       ui.el("section", { class: "card" }, [
@@ -1634,9 +1863,10 @@ button { font: inherit; color: inherit; }
     SP.app.persist();
   }
 
-  function openBlockEditor(dateKey, blockId, onChange) {
+  function openBlockEditor(dateKey, blockId, onChange, isNew) {
     const state = SP.app.state();
-    const blocks = blocksOf(dateKey);
+    const day = SP.app.store().getDay(dateKey);
+    const blocks = day.blocks;
     const block = blocks.find((b) => b.id === blockId);
     if (!block) return;
 
@@ -1674,6 +1904,23 @@ button { font: inherit; color: inherit; }
     // 어렵다. 편집 시트에서도 완료를 바꿀 수 있어야 한다.
     const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
 
+    // 새 블록은 할 일을 함께 만드는 게 기본이다. 이미 있는 블록은 지금 상태가 기본.
+    const initialChoice = block.todoId || (isNew ? "new" : "none");
+    const todoSelect = ui.el("select", { class: "subject-select" }, [
+      ui.el("option", { value: "new", text: "＋ 새 할 일로 추가", selected: initialChoice === "new" }),
+      ...day.todos.map((t) =>
+        ui.el("option", { value: t.id, text: t.text, selected: initialChoice === t.id })),
+      ui.el("option", { value: "none", text: "할 일과 연결 안 함", selected: initialChoice === "none" }),
+    ]);
+    // 기존 할 일을 고르면 과목·내용을 그 할 일 값으로 맞춘다. 저장할 때는 화면에
+    // 보이는 값이 양쪽에 쓰이므로, 고른 순간 보여줘야 무엇이 저장될지 알 수 있다.
+    todoSelect.addEventListener("change", () => {
+      const picked = day.todos.find((t) => t.id === todoSelect.value);
+      if (!picked) return;
+      textInput.value = picked.text;
+      select.value = picked.subjectId || "";
+    });
+
     ui.openSheet({
       title: "시간 블록",
       body: [
@@ -1682,11 +1929,13 @@ button { font: inherit; color: inherit; }
         stepper("종료", "end"),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "내용" }), textInput]),
+        ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), todoSelect]),
         ui.el("label", { class: "editor-done" }, [doneInput, ui.el("span", { text: "이 시간 공부 완료" })]),
       ],
       actions: [
         ui.el("button", { class: "btn btn-danger", text: "삭제", onclick: () => {
-          saveBlocks(dateKey, blocks.filter((b) => b.id !== blockId));
+          // 할 일은 남긴다. 언제 할지를 지웠을 뿐 할 일은 그대로다.
+          SP.app.saveDay(dateKey, SP.link.removeBlock(SP.app.store().getDay(dateKey), blockId));
           ui.closeSheet(); onChange();
         } }),
         ui.el("button", { class: "btn btn-primary", text: "저장", onclick: () => {
@@ -1695,7 +1944,10 @@ button { font: inherit; color: inherit; }
           const check = storeApi.validateBlock(next);
           if (!check.ok) { ui.toast(check.error); return; }
           if (storeApi.findOverlap(blocks, next, blockId)) { ui.toast("다른 블록과 겹칩니다."); return; }
-          saveBlocks(dateKey, blocks.map((b) => (b.id === blockId ? next : b)));
+          // 빈 할 일이 생기지 않게 하되 새 검증 규칙은 만들지 않는다.
+          const todoText = next.text || subjectsApi.nameOf(state.settings.subjects, next.subjectId) || "이름 없음";
+          SP.app.saveDay(dateKey,
+            SP.link.commitBlock(SP.app.store().getDay(dateKey), next, todoSelect.value, todoText));
           ui.closeSheet(); onChange();
         } }),
       ],
@@ -1706,7 +1958,7 @@ button { font: inherit; color: inherit; }
   function openBlockEditorOrRollback(dateKey, blockId, onChange) {
     const before = blocksOf(dateKey).find((b) => b.id === blockId);
     let committed = false;
-    openBlockEditor(dateKey, blockId, () => { committed = true; onChange(); });
+    openBlockEditor(dateKey, blockId, () => { committed = true; onChange(); }, true);
     const host = document.getElementById("sheet-root");
     const observer = new MutationObserver(() => {
       if (host.childElementCount === 0) {
@@ -1721,7 +1973,7 @@ button { font: inherit; color: inherit; }
   }
 
   function createBlock(dateKey, start, end, onChange) {
-    const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false };
+    const candidate = { id: storeApi.newId(), subjectId: null, text: "", start, end, done: false, todoId: null };
     const check = storeApi.validateBlock(candidate);
     if (!check.ok) { ui.toast(check.error); return; }
     if (storeApi.findOverlap(blocksOf(dateKey), candidate)) { ui.toast("다른 블록과 겹칩니다."); return; }
@@ -1906,7 +2158,7 @@ button { font: inherit; color: inherit; }
           class: "tt-check", "aria-label": "완료 토글", text: block.done ? "✓" : "",
           onclick: (e) => {
             e.stopPropagation();
-            saveBlocks(dateKey, blocksOf(dateKey).map((b) => (b.id === block.id ? { ...b, done: !b.done } : b)));
+            SP.app.saveDay(dateKey, SP.link.setBlockDone(SP.app.store().getDay(dateKey), block.id, !block.done));
             onChange();
           },
         }));
@@ -2118,9 +2370,13 @@ button { font: inherit; color: inherit; }
     const timetableHost = ui.el("div", {});
     const totalsHost = ui.el("div", {});
 
-    const refreshTotals = () => { ui.clear(totalsHost).appendChild(totalsCard(dateKey)); };
-    const onTodoChange = () => { SP.todos.render(todoHost, dateKey, onTodoChange); };
-    const onBlockChange = () => { SP.timetable.render(timetableHost, dateKey, onBlockChange); refreshTotals(); };
+    // 할 일과 블록이 한 쌍으로 움직이므로 둘을 따로 그리면 화면이 어긋난다.
+    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다.
+    const refresh = () => {
+      SP.todos.render(todoHost, dateKey, refresh);
+      SP.timetable.render(timetableHost, dateKey, refresh);
+      ui.clear(totalsHost).appendChild(totalsCard(dateKey));
+    };
 
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
@@ -2137,9 +2393,7 @@ button { font: inherit; color: inherit; }
     const memo = host.querySelector(".memo");
     if (memo) memo.value = SP.app.store().getDay(dateKey).memo;
 
-    SP.todos.render(todoHost, dateKey, onTodoChange);
-    if (SP.timetable.render) SP.timetable.render(timetableHost, dateKey, onBlockChange);
-    refreshTotals();
+    refresh();
   }
 
   function refresh() {
@@ -2375,6 +2629,13 @@ button { font: inherit; color: inherit; }
     saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 300);
   }
 
+  // 블록과 할 일은 한 쌍으로 움직인다. 따로 쓰면 완료 상태가 어긋난 순간이
+  // 저장될 수 있다.
+  function saveDay(dateKey, next) {
+    store.setDay(dateKey, { todos: next.todos, blocks: next.blocks });
+    persist();
+  }
+
   // 디바운스 대기 중인 쓰기를 즉시 밀어 넣는다. 폰에서 체크 하나 하고 곧바로 앱을
   // 내리거나 화면을 끄면 300ms를 못 채우고 그 편집이 통째로 사라진다.
   function flush() {
@@ -2430,7 +2691,7 @@ button { font: inherit; color: inherit; }
     window.addEventListener("pagehide", flush);
   }
 
-  SP.app = { boot, state, persist, showCalendar, showDay, today, viewDate, store: () => store };
+  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, today, viewDate, store: () => store };
   document.addEventListener("DOMContentLoaded", boot);
 })(typeof globalThis !== "undefined" ? globalThis : window);
 
