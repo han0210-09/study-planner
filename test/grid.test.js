@@ -89,39 +89,74 @@ test("selectionArgs 결과를 limitRange에 넘기면 앵커 칸이 포함된다
   assert.deepEqual(store.limitRange(blocks, b.anchor, b.cursor), { start: 320, end: 365 });
 });
 
-test("plusSlotFor: 틈이 넉넉하면 직전 블록과 같은 길이", () => {
-  const blocks = [B(360, 420), B(480, 540)];
-  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 480 });
+// ---- 맞닿은 블록의 경계 ----
+
+test("neighborAt: 경계를 맞댄 블록만 찾는다", () => {
+  const blocks = [B(360, 420), B(420, 480), B(500, 560)];
+  assert.equal(grid.neighborAt(blocks, blocks[0], "end").start, 420);
+  assert.equal(grid.neighborAt(blocks, blocks[1], "start").start, 360);
+  // 480 과 500 사이에는 틈이 있으므로 이웃이 아니다.
+  assert.equal(grid.neighborAt(blocks, blocks[1], "end"), null);
+  assert.equal(grid.neighborAt(blocks, blocks[2], "start"), null);
 });
 
-test("plusSlotFor: 틈이 좁으면 틈 전체", () => {
-  const blocks = [B(360, 420), B(450, 540)];
-  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 450 });
+test("boundaryRange: 이웃이 없으면 빈 칸 끝까지 간다", () => {
+  const blocks = [B(600, 660), B(800, 860)];
+  const end = grid.boundaryRange(blocks, blocks[0], "end");
+  assert.equal(end.max, 800, "다음 블록 앞에서 멈춘다");
+  assert.equal(end.min, 605, "자기가 최소 5분은 남는다");
+  const start = grid.boundaryRange(blocks, blocks[0], "start");
+  assert.equal(start.min, 300, "앞이 비었으면 하루 시작까지");
+  assert.equal(start.max, 655);
 });
 
-test("plusSlotFor: 다음 블록이 붙어 있으면 null", () => {
+test("boundaryRange: 이웃이 붙어 있으면 이웃도 5분은 남긴다", () => {
   const blocks = [B(360, 420), B(420, 480)];
-  assert.equal(grid.plusSlotFor(blocks, blocks[0]), null);
+  const r = grid.boundaryRange(blocks, blocks[1], "start");
+  assert.equal(r.min, 365, "앞 블록이 5분은 남아야 한다");
+  assert.equal(r.max, 475);
+  assert.equal(r.neighbor.start, 360);
 });
 
-test("plusSlotFor: DAY_END에서 끝나면 null", () => {
-  const blocks = [B(1500, 1560)];
-  assert.equal(grid.plusSlotFor(blocks, blocks[0]), null);
+test("resizeAt: 맞닿은 두 블록이 함께 움직인다", () => {
+  const blocks = [B(360, 420), B(420, 480)];
+  const r = grid.resizeAt(blocks, blocks[1], "start", 400);
+  assert.equal(r.at, 400);
+  assert.equal(r.blocks.length, 2, "둘 다 바뀐다");
+  const moved = r.blocks.find((b) => b.start === 400);
+  const shrunk = r.blocks.find((b) => b.start === 360);
+  assert.equal(moved.end, 480, "잡은 블록은 앞으로 늘었다");
+  assert.equal(shrunk.end, 400, "이웃은 그만큼 줄었다");
 });
 
-test("plusSlotFor: 틈이 정확히 5분이면 5분짜리", () => {
-  const blocks = [B(360, 420), B(425, 480)];
-  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 420, end: 425 });
+test("resizeAt: 이웃이 없으면 잡은 블록만 바뀐다", () => {
+  const blocks = [B(600, 660)];
+  const r = grid.resizeAt(blocks, blocks[0], "end", 720);
+  assert.equal(r.blocks.length, 1);
+  assert.equal(r.blocks[0].end, 720);
 });
 
-test("plusSlotFor: 뒤가 비어 있으면 DAY_END까지가 틈", () => {
-  const blocks = [B(360, 370)];
-  assert.deepEqual(grid.plusSlotFor(blocks, blocks[0]), { start: 370, end: 380 });
-  assert.deepEqual(grid.plusSlotFor([B(1540, 1550)], B(1540, 1550)), { start: 1550, end: 1560 });
+test("resizeAt: 범위를 넘겨도 이웃을 5분 밑으로 깎지 않는다", () => {
+  const blocks = [B(360, 420), B(420, 480)];
+  const r = grid.resizeAt(blocks, blocks[1], "start", 0);
+  assert.equal(r.at, 365, "앞 블록에 5분이 남는 자리에서 멈춘다");
+  assert.equal(r.blocks.find((b) => b.start === 360).end, 365);
 });
 
-// 정렬 순서에 기대면 안 된다. 붙여넣기 직후처럼 순서가 흐트러진 배열도 들어온다.
-test("plusSlotFor: 블록 순서가 뒤죽박죽이어도 가장 이른 다음 블록을 찾는다", () => {
-  const blocks = [B(900, 960), B(360, 420), B(480, 540)];
-  assert.deepEqual(grid.plusSlotFor(blocks, blocks[1]), { start: 420, end: 480 });
+test("resizeAt: 자기 자신도 5분 밑으로는 못 줄인다", () => {
+  const blocks = [B(600, 660)];
+  assert.equal(grid.resizeAt(blocks, blocks[0], "end", 0).at, 605);
+  assert.equal(grid.resizeAt(blocks, blocks[0], "start", 9999).at, 655);
+});
+
+test("resizeAt: 제자리면 null 이다", () => {
+  const blocks = [B(600, 660)];
+  assert.equal(grid.resizeAt(blocks, blocks[0], "end", 660), null);
+});
+
+// 붙여넣기 직후처럼 정렬이 흐트러진 배열도 들어온다.
+test("boundaryRange: 블록 순서가 뒤죽박죽이어도 맞는 이웃을 찾는다", () => {
+  const blocks = [B(900, 960), B(360, 420), B(420, 480)];
+  const r = grid.boundaryRange(blocks, blocks[2], "start");
+  assert.equal(r.neighbor.start, 360);
 });

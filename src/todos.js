@@ -8,12 +8,6 @@
   const LONG_PRESS_MS = 450;
   const MOVE_TOLERANCE = 8;
 
-  function whenLabel(own) {
-    if (own.length === 0) return "미배정";
-    if (own.length === 1) return dt.minutesToLabel(own[0].start) + "~" + dt.minutesToLabel(own[0].end);
-    return own.length + "개 배정";
-  }
-
   function openEditor(dateKey, todoId, onDone) {
     const state = SP.app.state();
     const day = SP.app.store().getDay(dateKey);
@@ -151,32 +145,64 @@
     setTimeout(() => input.focus(), 50);
   }
 
-  // 길게 눌러 지우는 길은 실수로 눌리기 쉽다. 그래서 배정된 시간이 없어도 한 번
-  // 묻는다. 시트에서 삭제 버튼을 누르는 건 이미 의도가 분명하므로 그쪽은 그대로 둔다.
-  async function confirmRemove(dateKey, todoId, onChange) {
-    const todo = SP.app.store().getDay(dateKey).todos.find((t) => t.id === todoId);
-    if (!todo) return;
-    const own = SP.link.blocksOfTodo(SP.app.store().getDay(dateKey), todoId);
-    const ok = await ui.confirmDialog(
-      "'" + todo.text + "' 을(를) 지웁니다." +
-      (own.length ? "\n타임테이블에 배정된 " + own.length + "개 블록도 함께 사라집니다." : "")
-    );
-    if (!ok) return;
-    // 묻는 동안 시간이 흘렀다. 그 사이의 편집을 덮어쓰지 않도록 다시 읽는다.
-    SP.app.saveDay(dateKey, SP.link.removeTodo(SP.app.store().getDay(dateKey), todoId));
+  // 목록의 한 줄은 블록 하나다. 한 할 일을 아침·저녁으로 나눠 잡았으면 두 줄이
+  // 되고, 각자 자기 시각 자리에 놓인다. 예전처럼 "2개 배정"으로 뭉치면 언제
+  // 하는 일인지 목록만 봐서는 알 수 없다.
+  //
+  // 아직 시간을 안 잡은 할 일은 비교할 시각이 없으므로 맨 아래로 모은다.
+  function rowsOf(day) {
+    const rows = [];
+    for (const block of day.blocks) {
+      const todo = day.todos.find((t) => t.id === block.todoId);
+      if (!todo) continue;
+      const own = day.blocks.filter((b) => b.todoId === todo.id).sort((a, b) => a.start - b.start);
+      rows.push({
+        key: block.id, todo, block,
+        nth: own.findIndex((b) => b.id === block.id) + 1,
+        of: own.length,
+      });
+    }
+    rows.sort((a, b) => a.block.start - b.block.start);
+    for (const todo of day.todos) {
+      if (!day.blocks.some((b) => b.todoId === todo.id)) {
+        rows.push({ key: todo.id, todo, block: null, nth: 1, of: 1 });
+      }
+    }
+    return rows;
+  }
+
+  // 길게 눌러 지우는 길은 실수로 눌리기 쉽다. 그래서 한 번 묻는다.
+  //
+  // 줄이 블록 하나이므로 지우는 것도 그 블록 하나다. 그 할 일의 마지막 블록일
+  // 때만 할 일까지 사라진다 - removeBlock 이 이미 그렇게 한다.
+  async function confirmRemove(dateKey, row, onChange) {
+    const what = row.of > 1
+      ? "'" + row.todo.text + "' 의 " + dt.minutesToLabel(row.block.start) + " 시간만 지웁니다."
+      : "'" + row.todo.text + "' 을(를) 지웁니다." + (row.block ? "\n타임테이블에서도 사라집니다." : "");
+    if (!(await ui.confirmDialog(what))) return;
+    const day = SP.app.store().getDay(dateKey);
+    SP.app.saveDay(dateKey, row.block
+      ? SP.link.removeBlock(day, row.block.id)
+      : SP.link.removeTodo(day, row.todo.id));
     onChange();
   }
 
-  // 체크박스와 순서 화살표는 제스처에서 뺀다. 체크는 이 화면에서 가장 자주 누르는
+  function openRow(dateKey, row, onChange) {
+    // 줄이 블록이면 그 블록을 연다. 시간이 없는 할 일만 할 일 시트로 간다.
+    if (row.block) SP.timetable.openBlockEditor(dateKey, row.block.id, onChange);
+    else openEditor(dateKey, row.todo.id, onChange);
+  }
+
+  // 체크박스와 순서 열은 제스처에서 뺀다. 체크는 이 화면에서 가장 자주 누르는
   // 곳이라, 손이 잠깐 머무는 것만으로 삭제를 묻는 창이 뜨면 쓰기 어려워진다.
   function inControls(target) {
-    return !!target.closest(".todo-check-hit, .todo-order");
+    return !!target.closest(".todo-check-hit");
   }
 
   // 짧게 누르면 편집, 길게 누르면 삭제. touch-action 은 건드리지 않는다 — 세로
   // 스크롤을 막을 이유가 없고, 손가락이 움직이면 브라우저가 스크롤을 가져가면서
   // pointercancel 을 보내 타이머가 접힌다.
-  function attachRowGestures(node, dateKey, todoId, onChange) {
+  function attachRowGestures(node, dateKey, row, onChange) {
     let timer = null;
     let startX = 0;
     let startY = 0;
@@ -193,7 +219,7 @@
       if (!armed) return;
       startX = e.clientX;
       startY = e.clientY;
-      timer = setTimeout(() => { fired = true; confirmRemove(dateKey, todoId, onChange); }, LONG_PRESS_MS);
+      timer = setTimeout(() => { fired = true; confirmRemove(dateKey, row, onChange); }, LONG_PRESS_MS);
     });
     node.addEventListener("pointermove", (e) => {
       if (moved || !armed) return;
@@ -205,7 +231,7 @@
     node.addEventListener("pointerup", () => {
       cancel();
       if (!armed || fired || moved) return;
-      openEditor(dateKey, todoId, onChange);
+      openRow(dateKey, row, onChange);
     });
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("pointerleave", cancel);
@@ -213,79 +239,71 @@
     node.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
-  function move(dateKey, todoId, delta, onChange) {
+  function toggle(dateKey, row, checked, onChange) {
     const day = SP.app.store().getDay(dateKey);
-    const todos = day.todos.slice();
-    const index = todos.findIndex((t) => t.id === todoId);
-    const target = index + delta;
-    if (index === -1 || target < 0 || target >= todos.length) return;
-    [todos[index], todos[target]] = [todos[target], todos[index]];
-    SP.app.store().setDay(dateKey, { todos });
-    SP.app.persist();
+    SP.app.saveDay(dateKey, row.block
+      ? SP.link.setBlockDone(day, row.block.id, checked)
+      : SP.link.setTodoDone(day, row.todo.id, checked));
     onChange();
   }
 
-  function render(host, dateKey, onChange) {
-    const state = SP.app.state();
-    const day = SP.app.store().getDay(dateKey);
-    const subjects = state.settings.subjects;
+  function rowNode(dateKey, row, subjects, onChange) {
+    const done = row.block ? row.block.done : row.todo.done;
+    const when = row.block
+      ? dt.minutesToLabel(row.block.start) + "~" + dt.minutesToLabel(row.block.end)
+      : "미배정";
 
-    const rows = day.todos.map((todo, index) => {
-      const own = SP.link.blocksOfTodo(day, todo.id);
-      const row = ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
-        ui.el("span", {
-          class: "todo-tag",
-          text: subjectsApi.nameOf(subjects, todo.subjectId) || "-",
-          style: { background: subjectsApi.colorOf(subjects, todo.subjectId) },
-        }),
-        // 배정 시각을 별도 열로 빼면 390px에서 할 일 이름이 눌린다. 이름 아래에
-        // 붙이고 버튼 전체를 탭 영역으로 둔다.
-        //
-        // 손가락으로 누르는 건 행 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
+    const title = ui.el("span", { class: "todo-title", text: row.todo.text });
+    // 같은 할 일이 여러 번 나뉘어 있을 때만 회차를 붙인다. 한 번뿐인데 1/1 이
+    // 붙으면 읽을 것만 늘어난다.
+    const nth = row.of > 1
+      ? ui.el("span", { class: "todo-nth", text: row.nth + "/" + row.of })
+      : null;
+
+    const node = ui.el("li", { class: "todo-row" + (done ? " todo-done" : "") }, [
+      ui.el("span", {
+        class: "todo-tag",
+        text: subjectsApi.nameOf(subjects, row.todo.subjectId) || "-",
+        style: { background: subjectsApi.colorOf(subjects, row.todo.subjectId) },
+      }),
+      ui.el("button", { class: "todo-text", type: "button",
+        // 손가락으로 누르는 건 줄 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
         // 여기 click 은 키보드로 Enter 를 눌렀을 때만 남는다 — 그때는 detail 이 0 이다.
-        ui.el("button", { class: "todo-text", onclick: (e) => { if (e.detail === 0) openEditor(dateKey, todo.id, onChange); } }, [
-          ui.el("span", { class: "todo-title", text: todo.text }),
-          ui.el("span", { class: "todo-when" + (own.length ? "" : " todo-when-none"), text: whenLabel(own) }),
-        ]),
-        ui.el("div", { class: "todo-order" }, [
-          ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
-          ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
-        ]),
-        // 과목이 없으면 완료를 매기지 않는다 — 공부 시간에도 달성률에도 안 들어가는
-        // 일이라 체크할 대상이 없다. 빈 칸은 남겨둔다. 없애면 그 줄만 순서 화살표가
-        // 오른쪽으로 밀려 다른 줄과 열이 어긋난다.
-        storeApi.isStudy(todo)
-          ? ui.el("label", { class: "todo-check-hit" }, [
-              ui.el("input", {
-                type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
-                onchange: (e) => {
-                  SP.app.saveDay(dateKey, SP.link.setTodoDone(SP.app.store().getDay(dateKey), todo.id, e.target.checked));
-                  onChange();
-                },
-              }),
-            ])
-          : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
-      ]);
-      attachRowGestures(row, dateKey, todo.id, onChange);
-      return row;
-    });
+        onclick: (e) => { if (e.detail === 0) openRow(dateKey, row, onChange); } }, [
+        ui.el("span", { class: "todo-head" }, [title, nth]),
+        ui.el("span", { class: "todo-when" + (row.block ? "" : " todo-when-none"), text: when }),
+      ]),
+      // 과목이 없으면 완료를 매기지 않는다. 빈 칸은 남겨 열이 어긋나지 않게 한다.
+      storeApi.isStudy(row.todo)
+        ? ui.el("label", { class: "todo-check-hit" }, [
+            ui.el("input", {
+              type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
+              onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
+            }),
+          ])
+        : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
+    ]);
+    attachRowGestures(node, dateKey, row, onChange);
+    return node;
+  }
+
+  function render(host, dateKey, onChange) {
+    const subjects = SP.app.state().settings.subjects;
+    const day = SP.app.store().getDay(dateKey);
+    const rows = rowsOf(day);
 
     ui.clear(host).appendChild(
       ui.el("section", { class: "card" }, [
         ui.el("h2", { class: "card-title", text: "To-Do List" }),
-        day.todos.length
-          ? ui.el("ul", { class: "todo-list" }, rows)
-          : ui.el("p", { class: "empty", text: "할 일이 없습니다. 아래 버튼으로 추가하세요." }),
-        // 길게 누르는 동작은 눈에 보이지 않는다. 안내가 없으면 아무도 못 찾는다.
-        day.todos.length
-          ? ui.el("p", { class: "empty", text: "할 일을 길게 누르면 지웁니다. 배정된 시간도 함께 사라집니다." })
-          : null,
+        rows.length
+          ? ui.el("ul", { class: "todo-list" }, rows.map((r) => rowNode(dateKey, r, subjects, onChange)))
+          : ui.el("p", { class: "empty", text: "할 일이 없습니다." }),
         ui.el("button", { class: "btn add-btn", text: "+ 할 일 추가", onclick: () => openEditor(dateKey, null, onChange) }),
       ])
     );
   }
 
-  const api = { render, openEditor };
+  const api = { render, openEditor, rowsOf };
   SP.todos = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);

@@ -198,8 +198,28 @@
     }
     if (raw.clipboard && !clipboard) mark();
 
+    // 사전의 분류. 항목 자체는 날짜 데이터에서 뽑으므로 여기서 지킬 것은
+    // 사용자가 만든 분류와 배정뿐이다. 없는 것은 손상이 아니다 — 이 기능이
+    // 생기기 전에 저장된 데이터에는 당연히 없다.
+    const dictionary = { groups: [], assign: {} };
+    const rawDict = raw.dictionary;
+    if (rawDict && typeof rawDict === "object" && !Array.isArray(rawDict)) {
+      dictionary.groups = (Array.isArray(rawDict.groups) ? rawDict.groups : [])
+        .filter((g) => g && typeof g.id === "string" && typeof g.name === "string")
+        .map((g) => ({ id: g.id, name: g.name }));
+      const ids = new Set(dictionary.groups.map((g) => g.id));
+      const rawAssign = rawDict.assign && typeof rawDict.assign === "object" && !Array.isArray(rawDict.assign)
+        ? rawDict.assign : {};
+      for (const [text, gid] of Object.entries(rawAssign)) {
+        // 없어진 분류를 가리키는 배정은 버린다. 남겨두면 어느 묶음에도 안 잡힌다.
+        if (typeof gid === "string" && ids.has(gid)) dictionary.assign[text] = gid;
+      }
+    } else if (rawDict != null) {
+      mark();
+    }
+
     return {
-      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard },
+      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard, dictionary },
       recovered,
       readOnly,
     };

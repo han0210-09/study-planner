@@ -155,7 +155,7 @@ button { font: inherit; color: inherit; }
 /* 길게 누르면 삭제다. user-select를 끄지 않으면 그동안 iOS가 텍스트를 잡아
    복사 메뉴를 띄운다. touch-action은 pan-y로 둬야 목록을 그대로 스크롤할 수 있다. */
 .todo-row {
-  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
   padding: 6px 0; border-bottom: 1px solid var(--line);
   touch-action: pan-y; user-select: none; -webkit-user-select: none;
 }
@@ -171,11 +171,13 @@ button { font: inherit; color: inherit; }
 .todo-when { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .todo-when-none { opacity: .6; }
 .todo-done .todo-title { text-decoration: line-through; color: var(--muted); }
-.todo-order { display: flex; flex-direction: column; }
-/* 순서 변경 화살표는 세로로 붙는 보조 컨트롤이다. 각 44x22로 두 개가 44x44를 채운다.
-   세로로 각각 44px을 주면 목록 행이 88px이 되어 한 화면에 몇 줄 안 들어간다. */
-.icon-btn.tiny { min-width: 44px; min-height: 22px; font-size: 10px; padding: 0; }
-.icon-btn.tiny[disabled] { opacity: .25; }
+/* 한 할 일을 나눠 잡았을 때만 회차가 붙는다. 이름과 붙어 다녀야 어느 이름의
+   몇 번째인지 읽힌다. */
+.todo-head { display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
+.todo-nth {
+  flex: 0 0 auto; font-size: 10px; font-weight: 700; color: var(--muted);
+  background: #EDEFF3; border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums;
+}
 /* 체크박스는 이 앱의 핵심 동작이다. 보이는 상자는 24px이지만 탭 영역은 44px로 넓힌다.
    input에는 가상요소가 안 먹으므로 label로 감싼다. */
 .todo-check-hit {
@@ -233,14 +235,19 @@ button { font: inherit; color: inherit; }
     repeating-linear-gradient(to right, #F1F3F5 0 1px, transparent 1px calc(100% / 12));
 }
 
+/* overflow 를 숨기면 경계선에 걸친 손잡이가 잘려서 손가락을 못 받는다. 그러면
+   그 자리는 빈 칸 드래그로 넘어가 블록이 새로 생긴다. 글자 자르기는 안쪽의
+   .tt-body 가 이미 맡고 있다. */
 .tt-seg {
-  display: flex; align-items: stretch; overflow: hidden;
+  display: flex; align-items: stretch;
   margin: 2px 0; filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
 .tt-seg-first { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
 .tt-seg-last { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .tt-seg-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 .tt-seg-dragging { opacity: .3; }
+/* 들린 블록. 원래 자리는 흐려지고 그림자가 손가락을 따라간다. */
+.tt-seg-lifted { opacity: .35; }
 .merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
 
 /* 조각이 한 칸(약 25px)일 수도 있으므로 44px 을 고정폭으로 못 준다. 줄어들게 두고,
@@ -258,9 +265,26 @@ button { font: inherit; color: inherit; }
 .tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
 
-.tt-handle { position: absolute; top: 0; bottom: 0; width: 14px; cursor: ew-resize; touch-action: none; }
-.tt-handle-start { left: -3px; }
-.tt-handle-end { right: -3px; }
+/* 경계선 위에 걸치게 둔다. 블록 안쪽을 먹지 않으므로 5분짜리(약 25px) 블록에서도
+   이름이 가려지지 않는다. touch-action: none 이라 잡으면 곧바로 우리 제스처가 되고,
+   폭이 20px 뿐이라 화면 스크롤을 가로막지도 않는다. */
+/* 손잡이는 블록 안쪽 가장자리에 붙인다. 밖으로 내밀면 행의 첫 칸에서 시작하는
+   블록의 손잡이가 격자 밖 시각 라벨 위로 나가 잡히지 않는다.
+   max-width 는 짧은 블록을 위한 것이다 - 5분(약 25px)짜리에서 양쪽 20px 이 겹치면
+   꾹 눌러 들 수 있는 자리가 사라진다. */
+.tt-handle {
+  position: absolute; top: 0; bottom: 0; width: 20px; max-width: 45%; z-index: 3;
+  border: 0; background: transparent; padding: 0;
+  cursor: ew-resize; touch-action: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.tt-handle::before {
+  content: ""; width: 4px; height: 62%; border-radius: 2px;
+  background: rgba(31,35,41,.42); box-shadow: 0 0 0 1.5px rgba(255,255,255,.75);
+}
+.tt-handle-on::before { background: var(--accent); box-shadow: 0 0 0 1.5px #fff; }
+.tt-handle-start { left: 0; }
+.tt-handle-end { right: 0; }
 
 .tt-ghost {
   background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
@@ -269,13 +293,22 @@ button { font: inherit; color: inherit; }
 }
 .tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.85); padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
 
-.tt-plus {
-  align-self: center; justify-self: center;
-  width: 26px; height: 26px; padding: 0; line-height: 1;
-  border: 1.5px dashed var(--accent); border-radius: 50%;
-  background: rgba(76,110,245,.10); color: var(--accent);
-  font-size: 15px; font-weight: 700; cursor: pointer;
+/* ---------- 탭과 좌우 넘김 ---------- */
+.pager-wrap { margin-top: 4px; }
+.tabs { display: flex; gap: 6px; padding: 0 2px 8px; }
+.tab {
+  flex: 1; min-height: 40px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--muted); font: inherit; font-size: 14px; cursor: pointer;
 }
+.tab-on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+/* 높이는 보고 있는 쪽에 맞춰 스크립트가 넣는다. 두 쪽 중 긴 쪽에 맞추면 짧은
+   To-Do 쪽에 빈 공간이 한 화면씩 남는다. */
+.pager { overflow: hidden; touch-action: pan-y; }
+/* align-items 를 stretch 로 두면 두 쪽이 모두 컨테이너 높이로 늘어나, 짧은 쪽의
+   scrollHeight 를 재도 긴 쪽 높이가 나온다. */
+.pager-track { display: flex; align-items: flex-start; transition: transform .22s ease; will-change: transform; }
+.pager-page { flex: 0 0 100%; min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .pager-track { transition: none; } }
 
 .tt-now-row { grid-column: 1 / -1; position: relative; pointer-events: none; }
 .tt-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger); }
@@ -321,6 +354,33 @@ button { font: inherit; color: inherit; }
 
 .backup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .hidden-file { display: none; }
+
+/* ---------- 사전 ---------- */
+.sheet-sub { margin: 14px 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.sheet-body > .sheet-sub:first-child { margin-top: 0; }
+.dict-group-head {
+  display: block; width: 100%; text-align: left; margin: 14px 0 6px; padding: 0;
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+}
+.dict-list { list-style: none; margin: 0; padding: 0; }
+.dict-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); }
+.dict-row:last-child { border-bottom: 0; }
+.dict-main {
+  min-height: 48px; min-width: 0; padding: 6px 0; border: 0; background: transparent;
+  text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+}
+.dict-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dict-meta { font-size: 11px; color: var(--muted); }
+.dict-tag { font-size: 16px; color: var(--muted); }
+/* 지금 골라져 있는 항목. 목록에서 어디에 들어 있는지 알 수 있어야 한다. */
+.menu-on { color: var(--accent); font-weight: 700; }
+.row-add { display: flex; gap: 8px; }
+.row-add input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius); font: inherit;
+}
 
 
 </style>
@@ -628,8 +688,28 @@ button { font: inherit; color: inherit; }
     }
     if (raw.clipboard && !clipboard) mark();
 
+    // 사전의 분류. 항목 자체는 날짜 데이터에서 뽑으므로 여기서 지킬 것은
+    // 사용자가 만든 분류와 배정뿐이다. 없는 것은 손상이 아니다 — 이 기능이
+    // 생기기 전에 저장된 데이터에는 당연히 없다.
+    const dictionary = { groups: [], assign: {} };
+    const rawDict = raw.dictionary;
+    if (rawDict && typeof rawDict === "object" && !Array.isArray(rawDict)) {
+      dictionary.groups = (Array.isArray(rawDict.groups) ? rawDict.groups : [])
+        .filter((g) => g && typeof g.id === "string" && typeof g.name === "string")
+        .map((g) => ({ id: g.id, name: g.name }));
+      const ids = new Set(dictionary.groups.map((g) => g.id));
+      const rawAssign = rawDict.assign && typeof rawDict.assign === "object" && !Array.isArray(rawDict.assign)
+        ? rawDict.assign : {};
+      for (const [text, gid] of Object.entries(rawAssign)) {
+        // 없어진 분류를 가리키는 배정은 버린다. 남겨두면 어느 묶음에도 안 잡힌다.
+        if (typeof gid === "string" && ids.has(gid)) dictionary.assign[text] = gid;
+      }
+    } else if (rawDict != null) {
+      mark();
+    }
+
     return {
-      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard },
+      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard, dictionary },
       recovered,
       readOnly,
     };
@@ -700,6 +780,158 @@ button { font: inherit; color: inherit; }
 </script>
   <script>
 (function (root) {
+  const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
+
+  // 사전은 따로 쌓아두지 않고 날짜 데이터에서 그때그때 뽑는다. 별도로 저장하면
+  // 할 일을 지웠을 때 사전에만 남아 어긋나고, 두 곳을 맞추는 코드가 계속 는다.
+  //
+  // 사용자가 정하는 값은 분류뿐이다. 그것만 state.dictionary 에 보관한다.
+  //
+  // 같은 이름은 하나로 친다. 과목이 달라도 마찬가지다 — "같은 이름의 할 일이
+  // 등록되었다면 하나로 쳐 달라"는 것이 정한 규칙이다.
+  function normalize(text) {
+    return String(text == null ? "" : text).trim();
+  }
+
+  function emptyDictionary() {
+    return { groups: [], assign: {} };
+  }
+
+  function dictionaryOf(state) {
+    if (!state.dictionary) state.dictionary = emptyDictionary();
+    return state.dictionary;
+  }
+
+  // 이름 하나에 과목이 여럿 쓰였을 수 있다. 가장 많이 쓴 과목을 대표로 삼고,
+  // 같은 횟수면 마지막에 쓴 것을 택한다 — 최근에 바꾼 쪽이 지금 생각에 가깝다.
+  function pickSubject(counts, lastSeen) {
+    let best = null;
+    for (const [id, n] of counts) {
+      if (!best || n > best.n || (n === best.n && lastSeen.get(id) > lastSeen.get(best.id))) {
+        best = { id, n };
+      }
+    }
+    return best ? best.id : null;
+  }
+
+  // 모든 날짜의 할 일을 이름으로 모은다.
+  //
+  // 횟수는 블록이 아니라 할 일로 센다. 하루에 두 번 나눠 잡은 것은 "그날 한 번
+  // 쓴 것"이지 두 번이 아니다.
+  function entries(state) {
+    const map = new Map();
+    const days = (state && state.days) || {};
+    for (const key of Object.keys(days).sort()) {
+      for (const todo of days[key].todos || []) {
+        const text = normalize(todo.text);
+        if (!text) continue;
+        let e = map.get(text);
+        if (!e) {
+          e = { text, count: 0, subjectId: null, lastUsed: "", counts: new Map(), lastSeen: new Map() };
+          map.set(text, e);
+        }
+        e.count++;
+        e.lastUsed = key;
+        if (todo.subjectId) {
+          e.counts.set(todo.subjectId, (e.counts.get(todo.subjectId) || 0) + 1);
+          e.lastSeen.set(todo.subjectId, key);
+        }
+      }
+    }
+
+    const assign = dictionaryOf(state).assign;
+    const out = [];
+    for (const e of map.values()) {
+      out.push({
+        text: e.text,
+        count: e.count,
+        lastUsed: e.lastUsed,
+        subjectId: pickSubject(e.counts, e.lastSeen),
+        groupId: assign[e.text] || null,
+      });
+    }
+    // 많이 쓴 것이 위로. 같으면 최근에 쓴 것이 위로, 그래도 같으면 이름순으로
+    // 고정한다 - 순서가 흔들리면 목록을 볼 때마다 항목이 튄다.
+    out.sort((a, b) =>
+      b.count - a.count ||
+      (a.lastUsed < b.lastUsed ? 1 : a.lastUsed > b.lastUsed ? -1 : 0) ||
+      (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
+    return out;
+  }
+
+  function findEntry(state, text) {
+    const key = normalize(text);
+    return entries(state).find((e) => e.text === key) || null;
+  }
+
+  // 분류별로 묶는다. 사용자가 만든 분류를 먼저 두고, 아직 정리 안 한 것을
+  // 마지막에 모은다. 빈 분류도 남긴다 - 방금 만든 분류가 사라지면 만든 것이
+  // 반영됐는지 알 수 없다.
+  function grouped(state) {
+    const list = entries(state);
+    const groups = dictionaryOf(state).groups;
+    const out = groups.map((g) => ({ group: g, items: list.filter((e) => e.groupId === g.id) }));
+    const known = new Set(groups.map((g) => g.id));
+    out.push({ group: null, items: list.filter((e) => !e.groupId || !known.has(e.groupId)) });
+    return out;
+  }
+
+  function addGroup(state, name) {
+    const trimmed = normalize(name);
+    if (!trimmed) return null;
+    const d = dictionaryOf(state);
+    const existing = d.groups.find((g) => g.name === trimmed);
+    if (existing) return existing;
+    const group = { id: store.newId(), name: trimmed };
+    d.groups.push(group);
+    return group;
+  }
+
+  function renameGroup(state, id, name) {
+    const trimmed = normalize(name);
+    const g = dictionaryOf(state).groups.find((x) => x.id === id);
+    if (!g || !trimmed) return false;
+    g.name = trimmed;
+    return true;
+  }
+
+  // 분류를 지워도 할 일은 남는다. 사전은 날짜 데이터에서 뽑으므로 여기서 지울
+  // 것은 배정뿐이다.
+  function removeGroup(state, id) {
+    const d = dictionaryOf(state);
+    const index = d.groups.findIndex((g) => g.id === id);
+    if (index === -1) return 0;
+    d.groups.splice(index, 1);
+    let freed = 0;
+    for (const [text, gid] of Object.entries(d.assign)) {
+      if (gid === id) { delete d.assign[text]; freed++; }
+    }
+    return freed;
+  }
+
+  function assignTo(state, text, groupId) {
+    const key = normalize(text);
+    if (!key) return false;
+    const d = dictionaryOf(state);
+    if (!groupId) { delete d.assign[key]; return true; }
+    if (!d.groups.some((g) => g.id === groupId)) return false;
+    d.assign[key] = groupId;
+    return true;
+  }
+
+  const api = {
+    normalize, emptyDictionary, entries, findEntry, grouped,
+    addGroup, renameGroup, removeGroup, assignTo,
+  };
+
+  root.SP = root.SP || {};
+  root.SP.dict = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
   const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
 
   const COLS = 60 / dt.SLOT;                     // 한 행 = 한 시간 = 12칸
@@ -757,20 +989,54 @@ button { font: inherit; color: inherit; }
       : { anchor: anchorMin + dt.SLOT, cursor: cursorMin };
   }
 
-  // 블록 뒤에 틈이 있으면 거기서 이어 만들 블록을 돌려준다. 길이는 직전 블록과
-  // 같게 잡는다 — 50분씩 연달아 공부하는 식이 가장 흔하고 예측이 된다.
-  // 틈이 그보다 좁으면 틈 전체를 쓴다.
-  function plusSlotFor(blocks, block) {
-    let gapEnd = dt.DAY_END;
+  // 경계를 맞대고 있는 이웃 블록. 시작 쪽이면 바로 앞에서 끝나는 블록,
+  // 끝 쪽이면 바로 뒤에서 시작하는 블록이다.
+  //
+  // 맞닿은 두 블록 사이에는 빈 칸이 없다. 그 경계를 한쪽만 움직이면 틈이
+  // 생기거나 겹치므로, 두 블록을 함께 움직여야 한다.
+  function neighborAt(blocks, block, edge) {
+    const at = edge === "start" ? block.start : block.end;
     for (const b of blocks) {
       if (b.id === block.id) continue;
-      if (b.start >= block.end && b.start < gapEnd) gapEnd = b.start;
+      if (edge === "start" ? b.end === at : b.start === at) return b;
     }
-    if (gapEnd - block.end < dt.SLOT) return null;
-    return { start: block.end, end: Math.min(block.end + (block.end - block.start), gapEnd) };
+    return null;
   }
 
-  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex, selectionArgs, plusSlotFor };
+  // 손잡이를 끌 때 경계가 갈 수 있는 범위.
+  //
+  // 이웃이 붙어 있으면 그 이웃의 반대쪽 모서리까지가 한계다 — 이웃도 최소 5분은
+  // 남아야 하므로 SLOT 만큼 물러선다. 이웃이 없으면 빈 칸이 끝나는 곳까지 간다.
+  function boundaryRange(blocks, block, edge) {
+    const neighbor = neighborAt(blocks, block, edge);
+    if (edge === "start") {
+      const lo = neighbor
+        ? neighbor.start + dt.SLOT
+        : blocks.reduce((m, b) => (b.id !== block.id && b.end <= block.start ? Math.max(m, b.end) : m), dt.DAY_START);
+      return { min: lo, max: block.end - dt.SLOT, neighbor };
+    }
+    const hi = neighbor
+      ? neighbor.end - dt.SLOT
+      : blocks.reduce((m, b) => (b.id !== block.id && b.start >= block.end ? Math.min(m, b.start) : m), dt.DAY_END);
+    return { min: block.start + dt.SLOT, max: hi, neighbor };
+  }
+
+  // 경계를 t 로 옮겼을 때 바뀌는 블록들. 이웃이 있으면 둘이 함께 나온다.
+  // 한쪽이 늘면 다른 쪽이 그만큼 줄어든다.
+  function resizeAt(blocks, block, edge, t) {
+    const range = boundaryRange(blocks, block, edge);
+    const at = Math.max(range.min, Math.min(t, range.max));
+    if (at === (edge === "start" ? block.start : block.end)) return null;
+    const out = [edge === "start" ? { ...block, start: at } : { ...block, end: at }];
+    if (range.neighbor) {
+      out.push(edge === "start"
+        ? { ...range.neighbor, end: at }
+        : { ...range.neighbor, start: at });
+    }
+    return { at, blocks: out };
+  }
+
+  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex, selectionArgs, neighborAt, boundaryRange, resizeAt };
 
   root.SP = root.SP || {};
   root.SP.grid = api;
@@ -1700,6 +1966,8 @@ button { font: inherit; color: inherit; }
           ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
           ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
           ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
+          // 사전은 날짜와 무관하다. 여태 등록한 할 일을 모아 보고 분류하는 곳이다.
+          ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(); } }),
           ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
           ui.el("button", { class: "menu-item menu-danger", text: "하루 초기화", onclick: resetDay }),
         ]),
@@ -1816,6 +2084,157 @@ button { font: inherit; color: inherit; }
   <script>
 (function (root) {
   const SP = (root.SP = root.SP || {});
+  const ui = SP.ui;
+  const dictApi = SP.dict;
+  const subjectsApi = SP.subjects;
+
+  // 할 일 하나를 어느 분류에 넣을지 고른다. 여기서 새 분류를 바로 만들 수 있어야
+  // 한다 — 분류를 먼저 만들러 다른 화면에 다녀오게 하면, 정리하다 말고 흐름이 끊긴다.
+  function groupPicker(text, onDone) {
+    const state = SP.app.state();
+    const groups = state.dictionary.groups;
+    const current = state.dictionary.assign[dictApi.normalize(text)] || null;
+    const nameInput = ui.el("input", { type: "text", placeholder: "예: 학원, 학교 수업", maxlength: "20" });
+
+    const choose = (groupId) => {
+      dictApi.assignTo(state, text, groupId);
+      SP.app.persist();
+      ui.closeSheet();
+      onDone();
+    };
+
+    ui.openSheet({
+      title: text,
+      body: [
+        ui.el("p", { class: "sheet-sub", text: "분류" }),
+        ui.el("div", { class: "menu" }, [
+          ui.el("button", {
+            class: "menu-item" + (current ? "" : " menu-on"), type: "button",
+            text: "분류 없음", onclick: () => choose(null),
+          }),
+          ...groups.map((g) => ui.el("button", {
+            class: "menu-item" + (g.id === current ? " menu-on" : ""), type: "button",
+            text: g.name, onclick: () => choose(g.id),
+          })),
+        ]),
+        ui.el("p", { class: "sheet-sub", text: "새 분류 만들기" }),
+        ui.el("div", { class: "row-add" }, [
+          nameInput,
+          ui.el("button", {
+            class: "btn", type: "button", text: "만들기",
+            onclick: () => {
+              const made = dictApi.addGroup(state, nameInput.value);
+              if (!made) { ui.toast("분류 이름을 입력하세요."); return; }
+              choose(made.id);
+            },
+          }),
+        ]),
+      ],
+    });
+  }
+
+  // 분류 자체를 고치거나 없앤다. 없애도 할 일은 남는다 — 사전은 날짜 데이터에서
+  // 뽑으므로 여기서 지우는 것은 묶어둔 것뿐이다.
+  function groupEditor(group, onDone) {
+    const state = SP.app.state();
+    const input = ui.el("input", { type: "text", value: group.name, maxlength: "20" });
+    ui.openSheet({
+      title: "분류 수정",
+      body: [ui.el("label", { class: "field" }, [ui.el("span", { text: "이름" }), input])],
+      actions: [
+        ui.el("button", {
+          class: "btn btn-danger", text: "분류 없애기",
+          onclick: async () => {
+            const freed = dictApi.entries(state).filter((e) => e.groupId === group.id).length;
+            const ok = await ui.confirmDialog(
+              "'" + group.name + "' 분류를 없앱니다.\n" +
+              (freed ? "할 일 " + freed + "개가 '분류 없음'으로 갑니다." : "묶여 있는 할 일은 없습니다.") +
+              "\n할 일 자체는 지워지지 않습니다.");
+            if (!ok) { onDone(); return; }
+            dictApi.removeGroup(state, group.id);
+            SP.app.persist();
+            ui.closeSheet();
+            onDone();
+          },
+        }),
+        ui.el("button", {
+          class: "btn btn-primary", text: "저장",
+          onclick: () => {
+            if (!dictApi.renameGroup(state, group.id, input.value)) { ui.toast("이름을 입력하세요."); return; }
+            SP.app.persist();
+            ui.closeSheet();
+            onDone();
+          },
+        }),
+      ],
+    });
+  }
+
+  // 사전. 여태 등록한 할 일을 모든 날짜에서 모아 보여준다.
+  //
+  // 여기서는 정리만 한다 — 줄을 누르면 분류를 고른다. 계획에 넣는 것은 블록
+  // 편집 시트의 할 일 목록이 맡는다. 시트는 한 번에 하나만 뜨므로, 편집 중에
+  // 사전을 띄우면 입력하던 것이 사라진다.
+  function open() {
+    const state = SP.app.state();
+    const subjects = state.settings.subjects;
+    const groups = dictApi.grouped(state);
+    const reopen = () => open();
+
+    const body = [];
+    for (const bucket of groups) {
+      const head = bucket.group
+        ? ui.el("button", {
+            class: "dict-group-head", type: "button", text: bucket.group.name + " ›",
+            onclick: () => groupEditor(bucket.group, reopen),
+          })
+        : ui.el("p", { class: "sheet-sub", text: "분류 없음" });
+      // 분류 없음이 비어 있으면 머리글도 띄우지 않는다. 다 정리한 사람에게
+      // 빈 칸만 남기지 않기 위해서다.
+      if (!bucket.group && bucket.items.length === 0) continue;
+      body.push(head);
+      if (bucket.items.length === 0) {
+        body.push(ui.el("p", { class: "empty", text: "아직 없습니다." }));
+        continue;
+      }
+      body.push(ui.el("ul", { class: "dict-list" }, bucket.items.map((entry) =>
+        ui.el("li", { class: "dict-row" }, [
+          ui.el("button", {
+            class: "dict-main", type: "button",
+            onclick: () => groupPicker(entry.text, reopen),
+          }, [
+            ui.el("span", { class: "dict-name", text: entry.text }),
+            ui.el("span", { class: "dict-meta", text:
+              (subjectsApi.nameOf(subjects, entry.subjectId) || "과목 없음") + " · " + entry.count + "회" }),
+          ]),
+          ui.el("button", {
+            class: "icon-btn dict-tag", type: "button", text: "⊞", "aria-label": "분류 바꾸기",
+            onclick: () => groupPicker(entry.text, reopen),
+          }),
+        ])
+      )));
+    }
+
+    if (body.length === 0) {
+      body.push(ui.el("p", { class: "empty", text: "아직 등록한 할 일이 없습니다.\n계획을 세우면 여기에 쌓입니다." }));
+    }
+
+    ui.openSheet({
+      title: "사전",
+      body,
+      actions: [ui.el("button", { class: "btn btn-ghost", text: "닫기", onclick: ui.closeSheet })],
+    });
+  }
+
+  const api = { open, groupPicker, groupEditor };
+  SP.dictsheet = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
   const dt = SP.datetime;
   const storeApi = SP.store;
   const subjectsApi = SP.subjects;
@@ -1823,12 +2242,6 @@ button { font: inherit; color: inherit; }
 
   const LONG_PRESS_MS = 450;
   const MOVE_TOLERANCE = 8;
-
-  function whenLabel(own) {
-    if (own.length === 0) return "미배정";
-    if (own.length === 1) return dt.minutesToLabel(own[0].start) + "~" + dt.minutesToLabel(own[0].end);
-    return own.length + "개 배정";
-  }
 
   function openEditor(dateKey, todoId, onDone) {
     const state = SP.app.state();
@@ -1967,32 +2380,64 @@ button { font: inherit; color: inherit; }
     setTimeout(() => input.focus(), 50);
   }
 
-  // 길게 눌러 지우는 길은 실수로 눌리기 쉽다. 그래서 배정된 시간이 없어도 한 번
-  // 묻는다. 시트에서 삭제 버튼을 누르는 건 이미 의도가 분명하므로 그쪽은 그대로 둔다.
-  async function confirmRemove(dateKey, todoId, onChange) {
-    const todo = SP.app.store().getDay(dateKey).todos.find((t) => t.id === todoId);
-    if (!todo) return;
-    const own = SP.link.blocksOfTodo(SP.app.store().getDay(dateKey), todoId);
-    const ok = await ui.confirmDialog(
-      "'" + todo.text + "' 을(를) 지웁니다." +
-      (own.length ? "\n타임테이블에 배정된 " + own.length + "개 블록도 함께 사라집니다." : "")
-    );
-    if (!ok) return;
-    // 묻는 동안 시간이 흘렀다. 그 사이의 편집을 덮어쓰지 않도록 다시 읽는다.
-    SP.app.saveDay(dateKey, SP.link.removeTodo(SP.app.store().getDay(dateKey), todoId));
+  // 목록의 한 줄은 블록 하나다. 한 할 일을 아침·저녁으로 나눠 잡았으면 두 줄이
+  // 되고, 각자 자기 시각 자리에 놓인다. 예전처럼 "2개 배정"으로 뭉치면 언제
+  // 하는 일인지 목록만 봐서는 알 수 없다.
+  //
+  // 아직 시간을 안 잡은 할 일은 비교할 시각이 없으므로 맨 아래로 모은다.
+  function rowsOf(day) {
+    const rows = [];
+    for (const block of day.blocks) {
+      const todo = day.todos.find((t) => t.id === block.todoId);
+      if (!todo) continue;
+      const own = day.blocks.filter((b) => b.todoId === todo.id).sort((a, b) => a.start - b.start);
+      rows.push({
+        key: block.id, todo, block,
+        nth: own.findIndex((b) => b.id === block.id) + 1,
+        of: own.length,
+      });
+    }
+    rows.sort((a, b) => a.block.start - b.block.start);
+    for (const todo of day.todos) {
+      if (!day.blocks.some((b) => b.todoId === todo.id)) {
+        rows.push({ key: todo.id, todo, block: null, nth: 1, of: 1 });
+      }
+    }
+    return rows;
+  }
+
+  // 길게 눌러 지우는 길은 실수로 눌리기 쉽다. 그래서 한 번 묻는다.
+  //
+  // 줄이 블록 하나이므로 지우는 것도 그 블록 하나다. 그 할 일의 마지막 블록일
+  // 때만 할 일까지 사라진다 - removeBlock 이 이미 그렇게 한다.
+  async function confirmRemove(dateKey, row, onChange) {
+    const what = row.of > 1
+      ? "'" + row.todo.text + "' 의 " + dt.minutesToLabel(row.block.start) + " 시간만 지웁니다."
+      : "'" + row.todo.text + "' 을(를) 지웁니다." + (row.block ? "\n타임테이블에서도 사라집니다." : "");
+    if (!(await ui.confirmDialog(what))) return;
+    const day = SP.app.store().getDay(dateKey);
+    SP.app.saveDay(dateKey, row.block
+      ? SP.link.removeBlock(day, row.block.id)
+      : SP.link.removeTodo(day, row.todo.id));
     onChange();
   }
 
-  // 체크박스와 순서 화살표는 제스처에서 뺀다. 체크는 이 화면에서 가장 자주 누르는
+  function openRow(dateKey, row, onChange) {
+    // 줄이 블록이면 그 블록을 연다. 시간이 없는 할 일만 할 일 시트로 간다.
+    if (row.block) SP.timetable.openBlockEditor(dateKey, row.block.id, onChange);
+    else openEditor(dateKey, row.todo.id, onChange);
+  }
+
+  // 체크박스와 순서 열은 제스처에서 뺀다. 체크는 이 화면에서 가장 자주 누르는
   // 곳이라, 손이 잠깐 머무는 것만으로 삭제를 묻는 창이 뜨면 쓰기 어려워진다.
   function inControls(target) {
-    return !!target.closest(".todo-check-hit, .todo-order");
+    return !!target.closest(".todo-check-hit");
   }
 
   // 짧게 누르면 편집, 길게 누르면 삭제. touch-action 은 건드리지 않는다 — 세로
   // 스크롤을 막을 이유가 없고, 손가락이 움직이면 브라우저가 스크롤을 가져가면서
   // pointercancel 을 보내 타이머가 접힌다.
-  function attachRowGestures(node, dateKey, todoId, onChange) {
+  function attachRowGestures(node, dateKey, row, onChange) {
     let timer = null;
     let startX = 0;
     let startY = 0;
@@ -2009,7 +2454,7 @@ button { font: inherit; color: inherit; }
       if (!armed) return;
       startX = e.clientX;
       startY = e.clientY;
-      timer = setTimeout(() => { fired = true; confirmRemove(dateKey, todoId, onChange); }, LONG_PRESS_MS);
+      timer = setTimeout(() => { fired = true; confirmRemove(dateKey, row, onChange); }, LONG_PRESS_MS);
     });
     node.addEventListener("pointermove", (e) => {
       if (moved || !armed) return;
@@ -2021,7 +2466,7 @@ button { font: inherit; color: inherit; }
     node.addEventListener("pointerup", () => {
       cancel();
       if (!armed || fired || moved) return;
-      openEditor(dateKey, todoId, onChange);
+      openRow(dateKey, row, onChange);
     });
     node.addEventListener("pointercancel", cancel);
     node.addEventListener("pointerleave", cancel);
@@ -2029,79 +2474,71 @@ button { font: inherit; color: inherit; }
     node.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
-  function move(dateKey, todoId, delta, onChange) {
+  function toggle(dateKey, row, checked, onChange) {
     const day = SP.app.store().getDay(dateKey);
-    const todos = day.todos.slice();
-    const index = todos.findIndex((t) => t.id === todoId);
-    const target = index + delta;
-    if (index === -1 || target < 0 || target >= todos.length) return;
-    [todos[index], todos[target]] = [todos[target], todos[index]];
-    SP.app.store().setDay(dateKey, { todos });
-    SP.app.persist();
+    SP.app.saveDay(dateKey, row.block
+      ? SP.link.setBlockDone(day, row.block.id, checked)
+      : SP.link.setTodoDone(day, row.todo.id, checked));
     onChange();
   }
 
-  function render(host, dateKey, onChange) {
-    const state = SP.app.state();
-    const day = SP.app.store().getDay(dateKey);
-    const subjects = state.settings.subjects;
+  function rowNode(dateKey, row, subjects, onChange) {
+    const done = row.block ? row.block.done : row.todo.done;
+    const when = row.block
+      ? dt.minutesToLabel(row.block.start) + "~" + dt.minutesToLabel(row.block.end)
+      : "미배정";
 
-    const rows = day.todos.map((todo, index) => {
-      const own = SP.link.blocksOfTodo(day, todo.id);
-      const row = ui.el("li", { class: "todo-row" + (todo.done ? " todo-done" : "") }, [
-        ui.el("span", {
-          class: "todo-tag",
-          text: subjectsApi.nameOf(subjects, todo.subjectId) || "-",
-          style: { background: subjectsApi.colorOf(subjects, todo.subjectId) },
-        }),
-        // 배정 시각을 별도 열로 빼면 390px에서 할 일 이름이 눌린다. 이름 아래에
-        // 붙이고 버튼 전체를 탭 영역으로 둔다.
-        //
-        // 손가락으로 누르는 건 행 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
+    const title = ui.el("span", { class: "todo-title", text: row.todo.text });
+    // 같은 할 일이 여러 번 나뉘어 있을 때만 회차를 붙인다. 한 번뿐인데 1/1 이
+    // 붙으면 읽을 것만 늘어난다.
+    const nth = row.of > 1
+      ? ui.el("span", { class: "todo-nth", text: row.nth + "/" + row.of })
+      : null;
+
+    const node = ui.el("li", { class: "todo-row" + (done ? " todo-done" : "") }, [
+      ui.el("span", {
+        class: "todo-tag",
+        text: subjectsApi.nameOf(subjects, row.todo.subjectId) || "-",
+        style: { background: subjectsApi.colorOf(subjects, row.todo.subjectId) },
+      }),
+      ui.el("button", { class: "todo-text", type: "button",
+        // 손가락으로 누르는 건 줄 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
         // 여기 click 은 키보드로 Enter 를 눌렀을 때만 남는다 — 그때는 detail 이 0 이다.
-        ui.el("button", { class: "todo-text", onclick: (e) => { if (e.detail === 0) openEditor(dateKey, todo.id, onChange); } }, [
-          ui.el("span", { class: "todo-title", text: todo.text }),
-          ui.el("span", { class: "todo-when" + (own.length ? "" : " todo-when-none"), text: whenLabel(own) }),
-        ]),
-        ui.el("div", { class: "todo-order" }, [
-          ui.el("button", { class: "icon-btn tiny", text: "▲", "aria-label": "위로", disabled: index === 0, onclick: () => move(dateKey, todo.id, -1, onChange) }),
-          ui.el("button", { class: "icon-btn tiny", text: "▼", "aria-label": "아래로", disabled: index === day.todos.length - 1, onclick: () => move(dateKey, todo.id, 1, onChange) }),
-        ]),
-        // 과목이 없으면 완료를 매기지 않는다 — 공부 시간에도 달성률에도 안 들어가는
-        // 일이라 체크할 대상이 없다. 빈 칸은 남겨둔다. 없애면 그 줄만 순서 화살표가
-        // 오른쪽으로 밀려 다른 줄과 열이 어긋난다.
-        storeApi.isStudy(todo)
-          ? ui.el("label", { class: "todo-check-hit" }, [
-              ui.el("input", {
-                type: "checkbox", class: "todo-check", "aria-label": "완료", checked: todo.done,
-                onchange: (e) => {
-                  SP.app.saveDay(dateKey, SP.link.setTodoDone(SP.app.store().getDay(dateKey), todo.id, e.target.checked));
-                  onChange();
-                },
-              }),
-            ])
-          : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
-      ]);
-      attachRowGestures(row, dateKey, todo.id, onChange);
-      return row;
-    });
+        onclick: (e) => { if (e.detail === 0) openRow(dateKey, row, onChange); } }, [
+        ui.el("span", { class: "todo-head" }, [title, nth]),
+        ui.el("span", { class: "todo-when" + (row.block ? "" : " todo-when-none"), text: when }),
+      ]),
+      // 과목이 없으면 완료를 매기지 않는다. 빈 칸은 남겨 열이 어긋나지 않게 한다.
+      storeApi.isStudy(row.todo)
+        ? ui.el("label", { class: "todo-check-hit" }, [
+            ui.el("input", {
+              type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
+              onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
+            }),
+          ])
+        : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
+    ]);
+    attachRowGestures(node, dateKey, row, onChange);
+    return node;
+  }
+
+  function render(host, dateKey, onChange) {
+    const subjects = SP.app.state().settings.subjects;
+    const day = SP.app.store().getDay(dateKey);
+    const rows = rowsOf(day);
 
     ui.clear(host).appendChild(
       ui.el("section", { class: "card" }, [
         ui.el("h2", { class: "card-title", text: "To-Do List" }),
-        day.todos.length
-          ? ui.el("ul", { class: "todo-list" }, rows)
-          : ui.el("p", { class: "empty", text: "할 일이 없습니다. 아래 버튼으로 추가하세요." }),
-        // 길게 누르는 동작은 눈에 보이지 않는다. 안내가 없으면 아무도 못 찾는다.
-        day.todos.length
-          ? ui.el("p", { class: "empty", text: "할 일을 길게 누르면 지웁니다. 배정된 시간도 함께 사라집니다." })
-          : null,
+        rows.length
+          ? ui.el("ul", { class: "todo-list" }, rows.map((r) => rowNode(dateKey, r, subjects, onChange)))
+          : ui.el("p", { class: "empty", text: "할 일이 없습니다." }),
         ui.el("button", { class: "btn add-btn", text: "+ 할 일 추가", onclick: () => openEditor(dateKey, null, onChange) }),
       ])
     );
   }
 
-  const api = { render, openEditor };
+  const api = { render, openEditor, rowsOf };
   SP.todos = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
@@ -2133,6 +2570,9 @@ button { font: inherit; color: inherit; }
   // 확실히 옆으로 가야(수십 px) 제스처가 우리에게 넘어온다. 그래도 시작 시각은
   // 안 밀린다 — anchor 는 pointerdown 시점에 고정되고 이후 이동은 끝점만 움직인다.
   const MOVE_TOLERANCE = 8;
+  // 블록을 들어올리는 데 걸리는 시간. 달력·To-Do 의 길게 누르기와 같은 값이라
+  // 앱 전체에서 "꾹 누르기"의 느낌이 하나로 맞는다.
+  const LIFT_MS = 450;
 
   // .tt-cells 의 사각형이 곧 데이터 영역이다. 시각 라벨을 같은 격자에 넣지 않고
   // 옆에 따로 둔 이유가 이것 — 라벨 폭을 빼는 보정이 필요 없어진다.
@@ -2197,18 +2637,68 @@ button { font: inherit; color: inherit; }
     // 어렵다. 편집 시트에서도 완료를 바꿀 수 있어야 한다.
     const doneInput = ui.el("input", { type: "checkbox", checked: block.done });
 
+    // 이 날짜에 등록된 할 일만 보여준다. 다른 날 것까지 섞이면 목록이 끝없이
+    // 길어지고, 오늘 계획에 없는 것을 잘못 고르기 쉽다. 예전 것은 아래 사전에서 꺼낸다.
+    //
+    // 이름이 같으면 하나로 친다. 같은 이름이 두 줄로 나오면 어느 쪽을 골라도
+    // 결과가 같은데 고민만 하게 된다.
+    const dayTodos = [];
+    const seenText = new Set();
+    for (const t of day.todos) {
+      const key = SP.dict.normalize(t.text);
+      if (!key || seenText.has(key)) continue;
+      seenText.add(key);
+      dayTodos.push(t);
+    }
+
+    // 이 블록이 가리키던 할 일이 같은 이름 때문에 접혔으면 남은 쪽을 고른다.
+    // 그러지 않으면 아무것도 선택 안 된 채로 열려서, 저장할 때 연결이 끊긴다.
+    const linked = day.todos.find((t) => t.id === block.todoId);
+    const canonical = linked
+      ? (dayTodos.find((t) => SP.dict.normalize(t.text) === SP.dict.normalize(linked.text)) || linked)
+      : null;
     // 새 블록은 할 일을 함께 만드는 게 기본이다. 이미 있는 블록은 지금 상태가 기본.
-    const initialChoice = block.todoId || (isNew ? "new" : "none");
+    const initialChoice = (canonical && canonical.id) || (isNew ? "new" : "none");
+
+    // 사전은 맨 끝에 붙인다. 오늘 계획에 없는 것을 여기서 꺼내 쓴다. 이미 오늘
+    // 목록에 있는 이름은 사전 쪽에서 뺀다 — 같은 것이 위아래로 두 번 나온다.
+    const DICT_PREFIX = " dict:";
+    const dictOptions = [];
+    for (const bucket of SP.dict.grouped(state)) {
+      const items = bucket.items.filter((e) => !seenText.has(e.text));
+      if (items.length === 0) continue;
+      dictOptions.push(ui.el("optgroup", { label: "사전 · " + (bucket.group ? bucket.group.name : "분류 없음") },
+        items.map((e) => ui.el("option", {
+          value: DICT_PREFIX + e.text,
+          text: e.text + " (" + (subjectsApi.nameOf(state.settings.subjects, e.subjectId) || "과목 없음") + " · " + e.count + "회)",
+        }))));
+    }
+
     const todoSelect = ui.el("select", { class: "subject-select" }, [
-      ui.el("option", { value: "new", text: "＋ 새 할 일로 추가", selected: initialChoice === "new" }),
-      ...day.todos.map((t) =>
-        ui.el("option", { value: t.id, text: t.text, selected: initialChoice === t.id })),
-      ui.el("option", { value: "none", text: "할 일과 연결 안 함", selected: initialChoice === "none" }),
+      ui.el("optgroup", { label: "오늘 계획" }, [
+        ui.el("option", { value: "new", text: "＋ 새 할 일로 추가", selected: initialChoice === "new" }),
+        ...dayTodos.map((t) =>
+          ui.el("option", { value: t.id, text: t.text, selected: initialChoice === t.id })),
+        ui.el("option", { value: "none", text: "할 일과 연결 안 함", selected: initialChoice === "none" }),
+      ]),
+      ...dictOptions,
     ]);
-    // 기존 할 일을 고르면 과목·내용을 그 할 일 값으로 맞춘다. 저장할 때는 화면에
-    // 보이는 값이 양쪽에 쓰이므로, 고른 순간 보여줘야 무엇이 저장될지 알 수 있다.
+
+    // 고른 순간 과목·내용을 그 값으로 맞춘다. 저장할 때는 화면에 보이는 값이
+    // 양쪽에 쓰이므로, 고른 즉시 보여줘야 무엇이 저장될지 알 수 있다.
     todoSelect.addEventListener("change", () => {
-      const picked = day.todos.find((t) => t.id === todoSelect.value);
+      const value = todoSelect.value;
+      if (value.indexOf(DICT_PREFIX) === 0) {
+        // 사전에서 꺼낸 것은 오늘 계획에 없던 할 일이다. 이름과 과목만 채우고
+        // 새 할 일로 되돌린다 — 저장하면 오늘 계획에 새로 생긴다.
+        const text = value.slice(DICT_PREFIX.length);
+        const entry = SP.dict.findEntry(state, text);
+        textInput.value = text;
+        if (entry && entry.subjectId) select.value = entry.subjectId;
+        todoSelect.value = "new";
+        return;
+      }
+      const picked = dayTodos.find((t) => t.id === value);
       if (!picked) return;
       textInput.value = picked.text;
       select.value = picked.subjectId || "";
@@ -2280,21 +2770,33 @@ button { font: inherit; color: inherit; }
     openBlockEditorOrRollback(dateKey, candidate.id, onChange);
   }
 
-  function drawGhost(cells, nodes, start, end) {
+  // 여러 구간을 한꺼번에 미리 그린다. 맞닿은 두 블록을 함께 움직일 때는 둘 다
+  // 보여야 어디로 가는지 알 수 있다.
+  function drawGhosts(cells, nodes, ranges) {
     for (const n of nodes) n.remove();
     nodes.length = 0;
-    const segs = grid.segmentsOf(start, end);
-    for (const seg of segs) {
-      const node = ui.el("div", { class: "tt-ghost", style: segStyle(seg) });
-      nodes.push(node);
-      cells.appendChild(node);
+    for (const r of ranges) {
+      const segs = grid.segmentsOf(r.start, r.end);
+      const made = [];
+      for (const seg of segs) {
+        const node = ui.el("div", { class: "tt-ghost", style: segStyle(seg) });
+        nodes.push(node);
+        made.push(node);
+        cells.appendChild(node);
+      }
+      // 라벨은 가장 넓은 조각이 맡는다. 첫 조각에 넣으면 05:55~08:00 처럼 첫
+      // 조각이 한 칸인 블록에서 글자가 통째로 잘린다.
+      const w = grid.widestIndex(segs);
+      if (made[w]) {
+        made[w].appendChild(ui.el("span", {
+          class: "tt-ghost-label", text: dt.minutesToLabel(r.start) + " ~ " + dt.minutesToLabel(r.end),
+        }));
+      }
     }
-    const w = grid.widestIndex(segs);
-    if (nodes[w]) {
-      nodes[w].appendChild(ui.el("span", {
-        class: "tt-ghost-label", text: dt.minutesToLabel(start) + " ~ " + dt.minutesToLabel(end),
-      }));
-    }
+  }
+
+  function drawGhost(cells, nodes, start, end) {
+    drawGhosts(cells, nodes, [{ start, end }]);
   }
 
   function attachCreateDrag(cells, dateKey, onChange) {
@@ -2304,7 +2806,6 @@ button { font: inherit; color: inherit; }
     let startX = 0;
     let startY = 0;
     let pointerId = null;
-    let tapPlus = null;
     const ghost = [];
 
     function cleanup() {
@@ -2315,7 +2816,7 @@ button { font: inherit; color: inherit; }
       }
       // 드래그 중에만 스크롤을 막는다. 평소에는 세로 스크롤이 되어야 한다.
       cells.style.touchAction = "";
-      active = false; decided = false; pointerId = null; tapPlus = null;
+      active = false; decided = false; pointerId = null;
     }
 
     function begin() {
@@ -2336,9 +2837,6 @@ button { font: inherit; color: inherit; }
       startX = e.clientX; startY = e.clientY;
       anchor = pointToMinutes(e.clientX, e.clientY, cells);
       decided = false;
-      // ⊕ 위에서 눌렀어도 드래그를 막지 않는다. 그 칸만 드래그 사각지대가 되면
-      // 안 되기 때문이다. 탭이었는지 드래그였는지는 손을 뗄 때 가른다.
-      tapPlus = e.target.closest(".tt-plus");
     });
 
     cells.addEventListener("pointermove", (e) => {
@@ -2359,13 +2857,10 @@ button { font: inherit; color: inherit; }
     });
 
     function finish(e) {
-      // 드래그가 성립하지 않은 제스처는 탭이다. ⊕ 를 여기서 처리해야 드래그와
-      // 탭을 시간창이 아니라 같은 제스처 안의 인과로 가를 수 있다. 시간으로
-      // 가르면 직전 드래그 직후의 관계없는 탭까지 삼킨다.
+      // 끌지 않고 뗀 것은 빈 칸을 톡 누른 것이다. 아무것도 만들지 않는다 —
+      // 스크롤하려다 손이 닿는 일이 잦아서, 그때마다 블록이 생기면 성가시다.
       if (!active) {
-        const plus = decided ? null : tapPlus;
-        decided = false; tapPlus = null; pointerId = null;
-        if (plus) createBlock(dateKey, Number(plus.dataset.start), Number(plus.dataset.end), onChange);
+        decided = false; pointerId = null;
         return;
       }
       const r = rangeAt(pointToMinutes(e.clientX, e.clientY, cells));
@@ -2380,8 +2875,14 @@ button { font: inherit; color: inherit; }
     cells.addEventListener("pointercancel", cleanup);
   }
 
-  // 끄는 동안 조각을 직접 재배치하지 않는다. 조각이 여러 개면 고스트 한 벌을
-  // 다시 그리는 쪽이 단순하고, 생성 드래그와 미리보기 경로가 하나로 합쳐진다.
+  // 손잡이를 끌어 길이를 바꾼다.
+  //
+  // 맞닿은 블록이 있으면 그 경계를 함께 움직인다 — 한쪽이 늘면 다른 쪽이 그만큼
+  // 줄어든다. 맞닿은 사이에는 빈 칸이 없으므로, 한쪽만 움직이면 틈이 생기거나
+  // 겹친다.
+  //
+  // 손잡이에는 touch-action: none 을 준다. 20px 짜리라 화면 스크롤을 가로막지
+  // 않으면서, 잡으면 곧바로 우리 제스처가 된다.
   function attachResize(handle, dateKey, blockId, edge, onChange) {
     handle.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
@@ -2390,10 +2891,7 @@ button { font: inherit; color: inherit; }
       if (!cells || !block) return;
 
       handle.setPointerCapture(e.pointerId);
-      cells.style.touchAction = "none";
-      const owned = [].slice.call(cells.querySelectorAll('.tt-seg[data-id="' + blockId + '"]'));
-      for (const n of owned) n.classList.add("tt-seg-dragging");
-
+      handle.classList.add("tt-handle-on");
       const ghost = [];
       let next = null;
       let moved = false;
@@ -2401,16 +2899,12 @@ button { font: inherit; color: inherit; }
       function onMove(ev) {
         ev.preventDefault();
         moved = true;
-        const cursor = pointToMinutes(ev.clientX, ev.clientY, cells);
-        // 고정된 쪽 모서리가 anchor 다. 끝을 끌 때만 커서 칸을 포함시킨다.
-        const anchor = edge === "start" ? block.end : block.start;
-        const c = edge === "start" ? cursor : cursor + dt.SLOT;
-        const limited = storeApi.limitRange(blocksOf(dateKey), anchor, c, blockId);
-        const start = Math.min(limited.start, limited.end);
-        const end = Math.max(limited.start, limited.end);
-        if (end - start < dt.SLOT) return;
-        next = { start, end };
-        drawGhost(cells, ghost, start, end);
+        // 끝 쪽은 커서가 놓인 칸까지 포함해야 한다. 시작 쪽은 그 칸의 앞이 경계다.
+        const t = pointToMinutes(ev.clientX, ev.clientY, cells) + (edge === "end" ? dt.SLOT : 0);
+        const r = grid.resizeAt(blocksOf(dateKey), block, edge, t);
+        if (!r) return;
+        next = r;
+        drawGhosts(cells, ghost, r.blocks.map((b) => ({ start: b.start, end: b.end })));
       }
 
       function onUp() {
@@ -2418,19 +2912,17 @@ button { font: inherit; color: inherit; }
         handle.removeEventListener("pointerup", onUp);
         handle.removeEventListener("pointercancel", onUp);
         for (const n of ghost) n.remove();
-        // 흐리게 한 것은 여기서 되돌린다. 아래 분기 중 하나는 다시 그리지 않고
-        // 빠져나가므로, onChange 에 맡기면 블록이 흐린 채로 남는다.
-        for (const n of owned) n.classList.remove("tt-seg-dragging");
-        cells.style.touchAction = "";
-        // 손잡이를 그냥 톡 누른 것도 블록을 누른 것이다. 좁은 조각에서는 손잡이가
-        // 조각 폭의 대부분을 덮으므로, 여기서 안 받으면 그 블록을 열 방법이 없다.
+        handle.classList.remove("tt-handle-on");
+        // 손잡이를 그냥 톡 누른 것도 그 블록을 누른 것이다.
         if (!moved) { openBlockEditor(dateKey, blockId, onChange); return; }
-        if (!next || (next.start === block.start && next.end === block.end)) { onChange(); return; }
-        const updated = { ...block, start: next.start, end: next.end };
-        if (!storeApi.validateBlock(updated).ok || storeApi.findOverlap(blocksOf(dateKey), updated, blockId)) {
-          ui.toast("여기에는 놓을 수 없습니다."); onChange(); return;
-        }
-        saveBlocks(dateKey, blocksOf(dateKey).map((b) => (b.id === blockId ? updated : b)));
+        if (!next) { onChange(); return; }
+        const bad = next.blocks.some((b) => !storeApi.validateBlock(b).ok);
+        if (bad) { ui.toast("여기까지는 줄일 수 없습니다."); onChange(); return; }
+        const byId = new Map(next.blocks.map((b) => [b.id, b]));
+        saveBlocks(dateKey, blocksOf(dateKey).map((b) => {
+          const hit = byId.get(b.id);
+          return hit ? { ...b, start: hit.start, end: hit.end } : b;
+        }));
         onChange();
       }
 
@@ -2440,49 +2932,33 @@ button { font: inherit; color: inherit; }
     });
   }
 
-  // 블록을 잡아 옮긴다. 길이는 그대로 두고 시작 시각만 바꾼다.
+  // 꾹 누르면 블록을 들 수 있고, 든 뒤에는 어느 방향으로든 끌 수 있다.
   //
-  // 진입 조건은 빈 칸 드래그와 같다 — 가로로 끌면 시작하고, 세로로 끌면 페이지
-  // 스크롤에 넘긴다. 끌지 않고 떼면 탭이므로 편집 시트를 연다. 드래그와 탭을
-  // 시간창이 아니라 같은 제스처 안에서 가른다.
+  // 곧바로 끌 수 있게 하면 "옮기려는 것"과 "화면을 넘기려는 것"을 방향으로만
+  // 갈라야 해서 판정이 늘 애매했다. 꾹 누르는 것은 다른 동작과 겹치지 않는다.
   //
-  // 포인터 캡처는 조각(node)에 건다. 조상인 .tt-cells 에 걸면 이벤트가 그쪽으로
-  // 재타깃되어 자손인 조각에는 오지 않는다.
+  // 손가락을 대고 가만히 있는 동안 브라우저는 아직 스크롤을 시작하지 않는다.
+  // 그 사이에 touchmove 를 preventDefault 하면 스크롤을 넘겨주지 않고 우리가
+  // 끌 수 있다. touch-action: none 으로 막는 방법도 있지만, 그러면 블록 위에
+  // 손가락을 얹은 채 화면을 넘기는 것 자체가 안 된다.
   function attachMove(node, dateKey, block, onChange) {
-    let active = false;
-    let decided = false;
-    let startX = 0;
-    let startY = 0;
-    let offset = 0;
+    let lifted = false;
+    let timer = null;
+    let moved = false;
     let pointerId = null;
     let cells = null;
+    let offset = 0;
+    let startX = 0;
+    let startY = 0;
     let placed = null;
     let tapCheck = false;
     const ghost = [];
     const duration = block.end - block.start;
 
+    const cancelTimer = () => { clearTimeout(timer); timer = null; };
+
     function owned() {
       return [].slice.call(cells.querySelectorAll('.tt-seg[data-id="' + block.id + '"]'));
-    }
-
-    function cleanup() {
-      for (const n of ghost) n.remove();
-      ghost.length = 0;
-      if (cells) {
-        for (const n of owned()) n.classList.remove("tt-seg-dragging");
-        cells.style.touchAction = "";
-      }
-      if (active && pointerId != null && node.hasPointerCapture(pointerId)) {
-        node.releasePointerCapture(pointerId);
-      }
-      active = false; decided = false; pointerId = null; placed = null;
-    }
-
-    function begin() {
-      active = true; decided = true;
-      cells.style.touchAction = "none";
-      node.setPointerCapture(pointerId);
-      for (const n of owned()) n.classList.add("tt-seg-dragging");
     }
 
     function moveTo(cursorMin) {
@@ -2494,40 +2970,68 @@ button { font: inherit; color: inherit; }
       drawGhost(cells, ghost, candidate.start, candidate.end);
     }
 
+    function lift(atMin) {
+      lifted = true;
+      cells.style.touchAction = "none";
+      try { node.setPointerCapture(pointerId); } catch (err) { /* 이미 놓친 포인터 */ }
+      for (const n of owned()) n.classList.add("tt-seg-lifted");
+      // 든 순간 바로 그림자를 보여준다. 아무 반응이 없으면 들렸는지 알 수 없다.
+      moveTo(atMin);
+    }
+
+    function cleanup() {
+      cancelTimer();
+      for (const n of ghost) n.remove();
+      ghost.length = 0;
+      if (cells) {
+        for (const n of owned()) n.classList.remove("tt-seg-lifted");
+        cells.style.touchAction = "";
+      }
+      if (lifted && pointerId != null && node.hasPointerCapture(pointerId)) {
+        node.releasePointerCapture(pointerId);
+      }
+      lifted = false; moved = false; pointerId = null; placed = null;
+    }
+
     node.addEventListener("pointerdown", (e) => {
-      // 손잡이만 뺀다. ✓ 위에서 눌러도 끌 수 있어야 블록 전체가 잡히는 느낌이 난다.
-      // 끌었는지 톡 눌렀는지는 손을 뗄 때 가른다.
+      // 손잡이는 길이 조절이 맡는다.
       if (e.target.closest(".tt-handle")) return;
       cells = node.closest(".tt-cells");
       if (!cells) return;
       pointerId = e.pointerId;
       startX = e.clientX; startY = e.clientY;
-      offset = pointToMinutes(e.clientX, e.clientY, cells) - block.start;
-      decided = false; placed = null;
+      const at = pointToMinutes(e.clientX, e.clientY, cells);
+      offset = at - block.start;
+      lifted = false; moved = false; placed = null;
       tapCheck = !!e.target.closest(".tt-check");
+      timer = setTimeout(() => lift(at), LIFT_MS);
     });
 
     node.addEventListener("pointermove", (e) => {
-      if (!active) {
-        if (decided || pointerId === null) return;
-        const dx = Math.abs(e.clientX - startX);
-        const dy = Math.abs(e.clientY - startY);
-        if (dx <= MOVE_TOLERANCE && dy <= MOVE_TOLERANCE) return;
-        decided = true;
-        if (dx <= dy) return;
-        begin();
+      if (!lifted) {
+        // 아직 안 들었는데 손가락이 움직였다면 스크롤이나 화면 넘기기다.
+        // 들어올리기를 접는다.
+        if (pointerId === null || moved) return;
+        if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE || Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+          moved = true;
+          cancelTimer();
+        }
+        return;
       }
       e.preventDefault();
       moveTo(pointToMinutes(e.clientX, e.clientY, cells));
     });
 
+    // 들고 있는 동안 브라우저가 화면을 스크롤하지 못하게 막는다. passive: false
+    // 여야 preventDefault 가 먹는다.
+    node.addEventListener("touchmove", (e) => { if (lifted) e.preventDefault(); }, { passive: false });
+
     node.addEventListener("pointerup", () => {
-      if (!active) {
-        // 허용치를 넘긴 적이 없으면 탭이다. 세로로 끌어 스크롤한 경우는
-        // decided 가 서 있으므로 아무것도 열지 않는다.
-        const tap = !decided && pointerId !== null;
+      cancelTimer();
+      if (!lifted) {
+        const tap = !moved && pointerId !== null;
         const onCheck = tapCheck;
-        decided = false; pointerId = null; tapCheck = false;
+        pointerId = null; moved = false; tapCheck = false;
         if (!tap) return;
         if (onCheck) toggleDone(dateKey, block, onChange);
         else openBlockEditor(dateKey, block.id, onChange);
@@ -2542,6 +3046,8 @@ button { font: inherit; color: inherit; }
     });
 
     node.addEventListener("pointercancel", cleanup);
+    // 꾹 누를 때 뜨는 운영체제의 선택 메뉴를 막는다.
+    node.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
   function blockSegments(dateKey, block, subjects, onChange) {
@@ -2575,9 +3081,19 @@ button { font: inherit; color: inherit; }
           ui.el("span", { class: "tt-label", text: label }),
           ui.el("span", { class: "tt-time", text: dt.minutesToLabel(block.start) + "~" + dt.minutesToLabel(block.end) }),
         ]));
-        parts.push(ui.el("div", { class: "tt-handle tt-handle-start", "aria-hidden": "true" }));
+        // 경계선 위에 걸치는 버튼이다. 블록 안쪽을 먹지 않으므로 5분짜리 블록도
+        // 이름이 가려지지 않는다. 키보드로 누르면 ±5분 조절이 있는 시트를 연다.
+        parts.push(ui.el("button", {
+          class: "tt-handle tt-handle-start", type: "button", "aria-label": "시작 시각 조절",
+          onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
+        }));
       }
-      if (i === last) parts.push(ui.el("div", { class: "tt-handle tt-handle-end", "aria-hidden": "true" }));
+      if (i === last) {
+        parts.push(ui.el("button", {
+          class: "tt-handle tt-handle-end", type: "button", "aria-label": "종료 시각 조절",
+          onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
+        }));
+      }
 
       // position 은 인라인으로 준다. .tt-handle 이 absolute 라 기준 상자가 필요하다.
       const node = ui.el("div", {
@@ -2594,31 +3110,6 @@ button { font: inherit; color: inherit; }
       attachMove(node, dateKey, block, onChange);
       return node;
     });
-  }
-
-  // 블록이 끝나는 지점이 곧 틈의 첫 칸이다. ⊕ 를 블록 위가 아니라 틈의 첫 칸에
-  // 놓아야 읽는 순서대로 "여기부터 이어서"가 된다.
-  function plusNodes(dateKey, blocks, onChange) {
-    const nodes = [];
-    for (const block of blocks) {
-      const slot = grid.plusSlotFor(blocks, block);
-      if (!slot) continue;
-      const rc = grid.rowColOf(slot.start);
-      nodes.push(ui.el("button", {
-        class: "tt-plus", type: "button", text: "+",
-        "aria-label": dt.minutesToLabel(slot.start) + "부터 이어서 만들기",
-        dataset: { start: String(slot.start), end: String(slot.end) },
-        style: { gridRow: String(rc.row + 1), gridColumn: String(rc.col + 1) },
-        // 포인터로 누른 click 은 무시한다. 그 경로는 attachCreateDrag 의 finish 가
-        // 같은 제스처 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)로
-        // 눌렀다는 뜻이고, 그때는 pointer 이벤트가 없으므로 여기서 처리해야 한다.
-        onclick: (e) => {
-          if (e.detail !== 0) return;
-          createBlock(dateKey, slot.start, slot.end, onChange);
-        },
-      }));
-    }
-    return nodes;
   }
 
   function nowMarker(dateKey) {
@@ -2649,7 +3140,6 @@ button { font: inherit; color: inherit; }
     for (const b of blocks) {
       for (const node of blockSegments(dateKey, b, subjects, onChange)) cells.appendChild(node);
     }
-    for (const node of plusNodes(dateKey, blocks, onChange)) cells.appendChild(node);
     const marker = nowMarker(dateKey);
     if (marker) cells.appendChild(marker);
 
@@ -2693,8 +3183,14 @@ button { font: inherit; color: inherit; }
   const eventsApi = SP.events;
   const ui = SP.ui;
 
+  const PAGES = ["타임테이블", "To-Do"];
+  const SWIPE_MIN = 40;
+
   let currentHost = null;
   let currentKey = null;
+  // 화면을 다시 그려도 보고 있던 쪽에 남아야 한다. 체크 하나 할 때마다
+  // 타임테이블로 튕겨 나가면 목록을 훑을 수가 없다.
+  let activePage = 0;
 
   function ddayChip(dateKey) {
     const state = SP.app.state();
@@ -2717,11 +3213,11 @@ button { font: inherit; color: inherit; }
     ]);
   }
 
-  // 달성률은 손으로 매기지 않는다. 계획한 시간 중 실제로 끝낸 비율이므로
-  // 블록의 완료 체크에서 그대로 나온다.
-  function rateCard(dateKey) {
+  // 하루를 한눈에 보는 카드. 달성률은 손으로 매기지 않고 블록의 완료에서 나온다.
+  function summaryCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
     const ratio = storeApi.doneRatio(day.blocks);
+    const uncounted = storeApi.sumUncounted(day.blocks);
     return ui.el("section", { class: "card" }, [
       ui.el("div", { class: "achieve-head" }, [
         ui.el("h2", { class: "card-title", text: "달성률" }),
@@ -2730,6 +3226,23 @@ button { font: inherit; color: inherit; }
       ui.el("div", { class: "totals-bar" }, [
         ui.el("div", { class: "totals-fill", style: { width: ratio + "%" } }),
       ]),
+      ui.el("div", { class: "totals" }, [
+        ui.el("div", { class: "totals-row" }, [
+          ui.el("span", { class: "totals-label", text: "목표시간" }),
+          ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
+        ]),
+        ui.el("div", { class: "totals-row" }, [
+          ui.el("span", { class: "totals-label", text: "실제시간" }),
+          ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
+        ]),
+      ]),
+      // 시간표에 있는 시간이 합계에서 빠졌을 때만, 왜 숫자가 다른지 밝힌다.
+      uncounted > 0
+        ? ui.el("p", {
+            class: "totals-note",
+            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다.",
+          })
+        : null,
     ]);
   }
 
@@ -2748,32 +3261,7 @@ button { font: inherit; color: inherit; }
     ]);
   }
 
-  // 달성률은 맨 위 카드가 맡는다. 여기서는 시간만 보여준다.
-  function totalsCard(dateKey) {
-    const day = SP.app.store().getDay(dateKey);
-    const uncounted = storeApi.sumUncounted(day.blocks);
-    return ui.el("section", { class: "card totals" }, [
-      ui.el("div", { class: "totals-row" }, [
-        ui.el("span", { class: "totals-label", text: "목표시간" }),
-        ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
-      ]),
-      ui.el("div", { class: "totals-row" }, [
-        ui.el("span", { class: "totals-label", text: "실제시간" }),
-        ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
-      ]),
-      // 없으면 아무 말도 하지 않는다. 시간표에 있는 시간이 합계에서 빠졌을 때만,
-      // 왜 숫자가 다른지 여기서 밝힌다.
-      uncounted > 0
-        ? ui.el("p", {
-            class: "totals-note",
-            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다.",
-          })
-        : null,
-    ]);
-  }
-
   function memoCard(dateKey) {
-    const day = SP.app.store().getDay(dateKey);
     return ui.el("section", { class: "card" }, [
       ui.el("h2", { class: "card-title", text: "메모" }),
       ui.el("textarea", {
@@ -2786,34 +3274,92 @@ button { font: inherit; color: inherit; }
     ]);
   }
 
+  // 타임테이블과 To-Do 를 한 장에 다 담으면 화면이 끝없이 길어진다. 좌우로 넘겨
+  // 바꾼다.
+  //
+  // 브라우저의 가로 스크롤(scroll-snap)을 쓰지 않는다. 그러면 두 쪽 중 긴 쪽에
+  // 맞춰 높이가 잡혀서, 짧은 To-Do 쪽에 빈 공간이 한 화면씩 남는다. 직접 옮기면
+  // 보고 있는 쪽 높이만 쓰면 된다.
+  function pager(dateKey, onChange) {
+    const pages = PAGES.map(() => ui.el("div", { class: "pager-page" }));
+    const track = ui.el("div", { class: "pager-track" }, pages);
+    const view = ui.el("div", { class: "pager" }, [track]);
+
+    const tabs = PAGES.map((name, i) =>
+      ui.el("button", {
+        class: "tab" + (i === activePage ? " tab-on" : ""), type: "button", text: name,
+        onclick: () => go(i),
+      }));
+
+    function paint() {
+      track.style.transform = "translateX(" + (-activePage * 100) + "%)";
+      tabs.forEach((t, i) => t.classList.toggle("tab-on", i === activePage));
+      // 보이지 않는 쪽은 탭 순서에서 뺀다. 안 그러면 Tab 키가 화면 밖 버튼으로 간다.
+      pages.forEach((p, i) => p.toggleAttribute("inert", i !== activePage));
+      view.style.height = pages[activePage].scrollHeight + "px";
+    }
+
+    function go(i) {
+      const next = Math.max(0, Math.min(i, PAGES.length - 1));
+      if (next === activePage) return;
+      activePage = next;
+      paint();
+    }
+
+    // 넘기는 판정은 시간창이 아니라 방향으로 가른다. 세로가 더 크면 페이지
+    // 스크롤이므로 넘기지 않는다.
+    //
+    // 타임테이블 격자 위에서는 가로로 끄는 것이 "시간 잡기"다. 여기서 페이지까지
+    // 넘어가면 두 동작이 같은 제스처를 두고 다툰다.
+    let startX = 0, startY = 0, tracking = false, decided = false;
+    view.addEventListener("pointerdown", (e) => {
+      tracking = !e.target.closest(".tt-cells");
+      decided = false;
+      startX = e.clientX; startY = e.clientY;
+    });
+    view.addEventListener("pointermove", (e) => {
+      if (!tracking || decided) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) return;
+      decided = true;
+      if (Math.abs(dx) <= Math.abs(dy)) return;
+      go(activePage + (dx < 0 ? 1 : -1));
+    });
+    view.addEventListener("pointerup", () => { tracking = false; });
+    view.addEventListener("pointercancel", () => { tracking = false; });
+
+    SP.timetable.render(pages[0], dateKey, onChange);
+    SP.todos.render(pages[1], dateKey, onChange);
+
+    // paint 는 화면에 붙은 뒤에 불러야 한다. 떨어져 있는 동안에는 scrollHeight 가
+    // 0 이라, 높이를 0 으로 잡아 아무것도 안 보이게 된다.
+    return { node: ui.el("div", { class: "pager-wrap" }, [ui.el("div", { class: "tabs" }, tabs), view]), paint };
+  }
+
   function render(host, dateKey) {
     currentHost = host;
     currentKey = dateKey;
 
-    const rateHost = ui.el("div", {});
-    const todoHost = ui.el("div", {});
-    const timetableHost = ui.el("div", {});
-    const totalsHost = ui.el("div", {});
+    const summaryHost = ui.el("div", {});
+    const pagerHost = ui.el("div", {});
 
-    // 할 일과 블록이 한 쌍으로 움직이므로 둘을 따로 그리면 화면이 어긋난다.
-    // 할 일 하나를 체크하면 연결된 블록도 같이 바뀐다. 달성률도 완료 체크에서
-    // 파생되므로 같이 다시 그려야 한다.
+    // 할 일과 블록은 한 쌍으로 움직인다. 둘을 따로 그리면 화면이 어긋난다.
+    // 달성률도 완료 체크에서 파생되므로 같이 다시 그린다.
     const refresh = () => {
-      ui.clear(rateHost).appendChild(rateCard(dateKey));
-      SP.todos.render(todoHost, dateKey, refresh);
-      SP.timetable.render(timetableHost, dateKey, refresh);
-      ui.clear(totalsHost).appendChild(totalsCard(dateKey));
+      ui.clear(summaryHost).appendChild(summaryCard(dateKey));
+      const made = pager(dateKey, refresh);
+      ui.clear(pagerHost).appendChild(made.node);
+      made.paint();
     };
 
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
         header(dateKey),
-        rateHost,
+        summaryHost,
         eventsCard(dateKey),
-        todoHost,
-        timetableHost,
-        totalsHost,
         memoCard(dateKey),
+        pagerHost,
       ])
     );
 

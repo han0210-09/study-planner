@@ -56,20 +56,54 @@
       : { anchor: anchorMin + dt.SLOT, cursor: cursorMin };
   }
 
-  // 블록 뒤에 틈이 있으면 거기서 이어 만들 블록을 돌려준다. 길이는 직전 블록과
-  // 같게 잡는다 — 50분씩 연달아 공부하는 식이 가장 흔하고 예측이 된다.
-  // 틈이 그보다 좁으면 틈 전체를 쓴다.
-  function plusSlotFor(blocks, block) {
-    let gapEnd = dt.DAY_END;
+  // 경계를 맞대고 있는 이웃 블록. 시작 쪽이면 바로 앞에서 끝나는 블록,
+  // 끝 쪽이면 바로 뒤에서 시작하는 블록이다.
+  //
+  // 맞닿은 두 블록 사이에는 빈 칸이 없다. 그 경계를 한쪽만 움직이면 틈이
+  // 생기거나 겹치므로, 두 블록을 함께 움직여야 한다.
+  function neighborAt(blocks, block, edge) {
+    const at = edge === "start" ? block.start : block.end;
     for (const b of blocks) {
       if (b.id === block.id) continue;
-      if (b.start >= block.end && b.start < gapEnd) gapEnd = b.start;
+      if (edge === "start" ? b.end === at : b.start === at) return b;
     }
-    if (gapEnd - block.end < dt.SLOT) return null;
-    return { start: block.end, end: Math.min(block.end + (block.end - block.start), gapEnd) };
+    return null;
   }
 
-  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex, selectionArgs, plusSlotFor };
+  // 손잡이를 끌 때 경계가 갈 수 있는 범위.
+  //
+  // 이웃이 붙어 있으면 그 이웃의 반대쪽 모서리까지가 한계다 — 이웃도 최소 5분은
+  // 남아야 하므로 SLOT 만큼 물러선다. 이웃이 없으면 빈 칸이 끝나는 곳까지 간다.
+  function boundaryRange(blocks, block, edge) {
+    const neighbor = neighborAt(blocks, block, edge);
+    if (edge === "start") {
+      const lo = neighbor
+        ? neighbor.start + dt.SLOT
+        : blocks.reduce((m, b) => (b.id !== block.id && b.end <= block.start ? Math.max(m, b.end) : m), dt.DAY_START);
+      return { min: lo, max: block.end - dt.SLOT, neighbor };
+    }
+    const hi = neighbor
+      ? neighbor.end - dt.SLOT
+      : blocks.reduce((m, b) => (b.id !== block.id && b.start >= block.end ? Math.min(m, b.start) : m), dt.DAY_END);
+    return { min: block.start + dt.SLOT, max: hi, neighbor };
+  }
+
+  // 경계를 t 로 옮겼을 때 바뀌는 블록들. 이웃이 있으면 둘이 함께 나온다.
+  // 한쪽이 늘면 다른 쪽이 그만큼 줄어든다.
+  function resizeAt(blocks, block, edge, t) {
+    const range = boundaryRange(blocks, block, edge);
+    const at = Math.max(range.min, Math.min(t, range.max));
+    if (at === (edge === "start" ? block.start : block.end)) return null;
+    const out = [edge === "start" ? { ...block, start: at } : { ...block, end: at }];
+    if (range.neighbor) {
+      out.push(edge === "start"
+        ? { ...range.neighbor, end: at }
+        : { ...range.neighbor, start: at });
+    }
+    return { at, blocks: out };
+  }
+
+  const api = { COLS, ROWS, rowColOf, segmentsOf, widestIndex, selectionArgs, neighborAt, boundaryRange, resizeAt };
 
   root.SP = root.SP || {};
   root.SP.grid = api;

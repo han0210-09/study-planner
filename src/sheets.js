@@ -229,6 +229,8 @@
           ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
           ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
           ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
+          // 사전은 날짜와 무관하다. 여태 등록한 할 일을 모아 보고 분류하는 곳이다.
+          ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(); } }),
           ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
           ui.el("button", { class: "menu-item menu-danger", text: "하루 초기화", onclick: resetDay }),
         ]),
