@@ -293,8 +293,8 @@
     const rows = rowsOf(day);
 
     ui.clear(host).appendChild(
+      // 제목은 탭이 대신한다(타임테이블 쪽과 같은 이유).
       ui.el("section", { class: "card" }, [
-        ui.el("h2", { class: "card-title", text: "To-Do List" }),
         rows.length
           ? ui.el("ul", { class: "todo-list" }, rows.map((r) => rowNode(dateKey, r, subjects, onChange)))
           : ui.el("p", { class: "empty", text: "할 일이 없습니다." }),

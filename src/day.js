@@ -99,33 +99,42 @@
   // 타임테이블과 To-Do 를 한 장에 다 담으면 화면이 끝없이 길어진다. 좌우로 넘겨
   // 바꾼다.
   //
-  // 브라우저의 가로 스크롤(scroll-snap)을 쓰지 않는다. 그러면 두 쪽 중 긴 쪽에
-  // 맞춰 높이가 잡혀서, 짧은 To-Do 쪽에 빈 공간이 한 화면씩 남는다. 직접 옮기면
-  // 보고 있는 쪽 높이만 쓰면 된다.
+  // 두 쪽을 나란히 놓고 한쪽을 overflow 로 가리지 않는다. 가려둔 타임테이블이
+  // To-Do 위로 비어져 나오는 일이 있었다 - 트랙이 합성 레이어(transform +
+  // will-change)가 되면 부모의 잘라내기를 지키지 않는 브라우저가 있다. 아예
+  // 화면에 없으면 새어 나올 수도 없으므로, 보고 있는 쪽만 만든다.
+  //
+  // 높이를 재서 넣던 것도 함께 없앴다. 한 쪽뿐이니 내용만큼 자라면 된다.
   function pager(dateKey, onChange) {
-    const pages = PAGES.map(() => ui.el("div", { class: "pager-page" }));
-    const track = ui.el("div", { class: "pager-track" }, pages);
-    const view = ui.el("div", { class: "pager" }, [track]);
+    const view = ui.el("div", { class: "pager" });
 
     const tabs = PAGES.map((name, i) =>
       ui.el("button", {
-        class: "tab" + (i === activePage ? " tab-on" : ""), type: "button", text: name,
+        class: "tab", type: "button", text: name, role: "tab",
         onclick: () => go(i),
       }));
 
-    function paint() {
-      track.style.transform = "translateX(" + (-activePage * 100) + "%)";
-      tabs.forEach((t, i) => t.classList.toggle("tab-on", i === activePage));
-      // 보이지 않는 쪽은 탭 순서에서 뺀다. 안 그러면 Tab 키가 화면 밖 버튼으로 간다.
-      pages.forEach((p, i) => p.toggleAttribute("inert", i !== activePage));
-      view.style.height = pages[activePage].scrollHeight + "px";
+    // dir 은 넘어온 방향이다. 0 이면 애니메이션 없이 그린다 - 체크 하나 누를
+    // 때마다 화면이 밀려 들어오면 눈이 아프다.
+    function paint(dir) {
+      const page = ui.el("div", {
+        class: "pager-page" + (dir > 0 ? " page-in-left" : dir < 0 ? " page-in-right" : ""),
+      });
+      ui.clear(view).appendChild(page);
+      if (activePage === 0) SP.timetable.render(page, dateKey, onChange);
+      else SP.todos.render(page, dateKey, onChange);
+      tabs.forEach((t, i) => {
+        t.classList.toggle("tab-on", i === activePage);
+        t.setAttribute("aria-selected", i === activePage ? "true" : "false");
+      });
     }
 
     function go(i) {
       const next = Math.max(0, Math.min(i, PAGES.length - 1));
       if (next === activePage) return;
+      const dir = next > activePage ? 1 : -1;
       activePage = next;
-      paint();
+      paint(dir);
     }
 
     // 넘기는 판정은 시간창이 아니라 방향으로 가른다. 세로가 더 크면 페이지
@@ -151,12 +160,10 @@
     view.addEventListener("pointerup", () => { tracking = false; });
     view.addEventListener("pointercancel", () => { tracking = false; });
 
-    SP.timetable.render(pages[0], dateKey, onChange);
-    SP.todos.render(pages[1], dateKey, onChange);
-
-    // paint 는 화면에 붙은 뒤에 불러야 한다. 떨어져 있는 동안에는 scrollHeight 가
-    // 0 이라, 높이를 0 으로 잡아 아무것도 안 보이게 된다.
-    return { node: ui.el("div", { class: "pager-wrap" }, [ui.el("div", { class: "tabs" }, tabs), view]), paint };
+    paint(0);
+    return ui.el("div", { class: "pager-wrap" }, [
+      ui.el("div", { class: "tabs", role: "tablist" }, tabs), view,
+    ]);
   }
 
   function render(host, dateKey) {
@@ -170,9 +177,7 @@
     // 달성률도 완료 체크에서 파생되므로 같이 다시 그린다.
     const refresh = () => {
       ui.clear(summaryHost).appendChild(summaryCard(dateKey));
-      const made = pager(dateKey, refresh);
-      ui.clear(pagerHost).appendChild(made.node);
-      made.paint();
+      ui.clear(pagerHost).appendChild(pager(dateKey, refresh));
     };
 
     ui.clear(host).appendChild(
