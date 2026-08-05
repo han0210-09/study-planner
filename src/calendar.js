@@ -154,6 +154,10 @@
           ui.el("h1", { class: "cal-title", text: year + "년 " + month + "월" }),
           ui.el("button", { class: "icon-btn", text: "›", "aria-label": "다음 달", onclick: () => go(1) }),
           ui.el("button", { class: "btn btn-ghost cal-today-btn", text: "오늘", onclick: goToday }),
+          // 사전은 날짜와 상관없이 쌓인 할 일을 정리하는 곳이라, 하루 안으로
+          // 들어가지 않고도 열 수 있어야 한다. 날짜를 안 넘기므로 '계획에
+          // 넣기'는 빠지고 정리만 한다 - 여기서는 넣을 하루가 정해져 있지 않다.
+          ui.el("button", { class: "btn btn-ghost cal-today-btn", text: "사전", onclick: () => SP.dictsheet.open() }),
         ]),
         ui.el("div", { class: "cal-weekdays" }, dt.WEEKDAY_NAMES.map((name, i) =>
           ui.el("div", { class: "cal-weekday" + (i === 0 ? " cal-sun" : i === 6 ? " cal-sat" : ""), text: name })
