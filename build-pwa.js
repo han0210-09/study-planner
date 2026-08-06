@@ -88,13 +88,42 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 캐시부터 보여주고 새 버전은 뒤에서 받아 둔다. 신호가 약한 곳에서도 앱이 즉시
-// 열리는 게 우선이고, 바뀐 내용은 다음에 열 때 반영된다.
+// 이 앱은 index.html 한 장이 곧 전부다 - CSS 도 JS 도 그 안에 박혀 있다.
+// 그래서 그 한 장을 캐시부터 주면, 고친 것이 폰에 며칠씩 안 닿는다. 실제로
+// 그랬다: 시간표와 달력을 고쳐 배포했는데 폰에는 옛 화면이 그대로 있었다.
+function isPage(request) {
+  if (request.mode === "navigate") return true;
+  const path = new URL(request.url).pathname;
+  return path.endsWith("/") || path.endsWith("/index.html");
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   if (new URL(request.url).origin !== self.location.origin) return;
 
+  // 앱 한 장은 망을 먼저 본다. 망이 없으면 캐시로 물러나므로 오프라인에서
+  // 열리는 것은 그대로다.
+  //
+  // cache: "no-store" 로 받는다. 그냥 fetch 하면 브라우저 HTTP 캐시가 옛
+  // 파일을 돌려줘서, 망이 멀쩡해도 새 빌드를 못 본다.
+  if (isPage(request)) {
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((hit) => hit || caches.match("./")))
+    );
+    return;
+  }
+
+  // 나머지(아이콘·매니페스트)는 잘 안 바뀐다. 캐시부터 보여주고 새 것은 뒤에서
+  // 받아 둔다 - 신호가 약한 곳에서도 앱이 즉시 열리는 게 우선이다.
   const fresh = fetch(request)
     .then((response) => {
       if (response && response.ok) {
@@ -122,7 +151,16 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
     // 상대 경로여야 한다. 등록 범위가 이 파일이 있는 폴더로 잡혀서,
     // 계정 하나에 저장소가 여럿이어도 서로 간섭하지 않는다.
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+    //
+    // updateViaCache: "none" — 브라우저 HTTP 캐시가 옛 sw.js 를 돌려주면 새 워커가
+    // 있다는 것 자체를 모른다. 이 파일만은 늘 망에서 받는다.
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
+      // 앱을 다시 볼 때마다 새 워커가 있는지 묻는다. 홈 화면에서 띄운 앱은
+      // 페이지를 새로 여는 일이 드물어서, 이게 없으면 며칠씩 옛 버전에 머문다.
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) reg.update().catch(function () {});
+      });
+    }).catch(function () {});
   });
 }
 </script>`;

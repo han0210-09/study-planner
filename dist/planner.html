@@ -100,13 +100,20 @@ button { font: inherit; color: inherit; }
 /* .btn과 특이도가 같고 뒤에 오므로 이 값이 이긴다. 44px 아래로 내리면 안 된다. */
 .cal-today-btn { min-height: 44px; padding: 0 10px; font-size: 13px; }
 
-.cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+/* minmax(0, 1fr) 여야 한다. 그냥 1fr 은 minmax(auto, 1fr) 이라 칸이 제 내용보다
+   좁아지지 못한다 - 일정 이름('1차 정기시험')이 줄바꿈 없이 붙어 있어서 그 글자
+   너비만큼 칸이 벌어지고, 격자가 통째로 화면 밖으로 밀려 나갔다.
+   요일 머리글과 날짜 격자는 서로 다른 grid 라 벌어지는 폭도 달랐다. 그래서
+   9월 1일(화요일)이 '수' 아래에 놓이기까지 했다. */
+.cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
 .cal-sun { color: var(--danger); }
 .cal-sat { color: #35709F; }
 
+/* min-width: 0 은 격자 칸에서 flex 로 이어지는 사슬 전체에 있어야 한다. 한 군데만
+   빠져도 그 지점에서 내용 너비가 그대로 올라와 칸을 벌린다. */
 .cal-cell {
-  min-height: 74px; padding: 4px; background: var(--surface);
+  min-height: 74px; min-width: 0; padding: 4px; background: var(--surface);
   border: 1px solid var(--line); border-radius: 10px;
   display: flex; flex-direction: column; gap: 2px;
   cursor: pointer; touch-action: pan-y; user-select: none;
@@ -115,10 +122,10 @@ button { font: inherit; color: inherit; }
 .cal-today { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent) inset; }
 .cal-num { font-size: 13px; font-weight: 600; }
 
-.cal-badges { display: flex; flex-direction: column; gap: 1px; min-height: 0; }
-.cal-badge { display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 1.2; }
+.cal-badges { display: flex; flex-direction: column; gap: 1px; min-height: 0; min-width: 0; }
+.cal-badge { display: flex; align-items: center; gap: 3px; min-width: 0; font-size: 10px; line-height: 1.2; }
 .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
-.cal-badge-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-badge-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-more { font-size: 10px; color: var(--muted); }
 
 .cal-bar { margin-top: auto; height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; }
