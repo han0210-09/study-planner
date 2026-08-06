@@ -13,7 +13,7 @@
   --soft: #EDF3E9;
   --danger: #C0483C;
   --radius: 12px;
-  --tt-hour: 64px;
+  --tt-hour: 88px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -135,7 +135,7 @@ button { font: inherit; color: inherit; }
 .empty { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 .add-btn { width: 100%; }
 
-.achieve-head { display: flex; justify-content: space-between; align-items: baseline; }
+.achieve-head { display: flex; align-items: baseline; gap: 8px; }
 .achieve-value { font-size: 18px; font-weight: 700; }
 
 .events-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -208,15 +208,19 @@ button { font: inherit; color: inherit; }
 
 /* 목표와 실제가 한 줄에 나란히 선다. 두 줄이면 늘 붙어 있는 이 칸이 그만큼
    두꺼워지고, 시간표가 볼 자리를 잃는다. */
-.totals { display: flex; gap: 16px; margin-top: 8px; }
+/* 달성률과 목표·실제가 한 줄을 나눠 쓴다. */
+.sum-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sum-row .card-title { margin: 0; }
+.totals { display: flex; gap: 14px; }
+.totals-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 .totals-row { display: flex; align-items: baseline; gap: 6px; }
 .totals-label { color: var(--muted); font-size: 12px; }
-.totals-bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.totals-bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .totals-fill { height: 100%; background: var(--accent); }
 
 /* 메모는 이제 늘 화면에 붙어 있다. 비어 있을 때까지 88px 을 차지하면 정작
    시간표가 볼 자리를 잃는다. 필요하면 오른쪽 아래를 끌어 늘릴 수 있다. */
-.memo { width: 100%; min-height: 58px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
+.memo { width: 100%; min-height: 46px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
 /* ---------- 타임테이블 (시간이 위에서 아래로 곧게 흐른다) ---------- */
 .tt-wrap { display: flex; margin-top: 8px; user-select: none; }
@@ -243,9 +247,13 @@ button { font: inherit; color: inherit; }
 
 /* overflow 를 열어둔다 - ✓ 가 얇은 블록 밖으로 삐져나와야 하기 때문이다.
    글자가 새는 것은 안쪽 .tt-main 이 막는다. */
+/* 아무리 짧은 블록에도 ✓ 와 글자가 들어가야 한다. 그래서 최소 높이를 준다 -
+   5분짜리는 제 시간(7px)보다 아래로 삐져나오지만, 안 보이는 것보다는 낫다.
+   짧은 블록일수록 z-index 를 올려(blockNode) 이웃에 가리지 않게 한다. */
 .tt-seg {
   position: absolute; left: 2px; right: 2px;
-  display: flex; flex-direction: column; overflow: visible;
+  min-height: 32px;
+  display: flex; flex-direction: column; overflow: hidden;
   border-radius: 6px;
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
@@ -254,35 +262,37 @@ button { font: inherit; color: inherit; }
 .tt-seg-lifted { opacity: .35; }
 .merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
 
-/* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 들어간다. */
-.tt-main { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; overflow: hidden; }
-/* ✓ 는 블록 높이를 따라가지 않는다. 5분(≈5px)짜리 블록 안에 갇히면 보이지도
-   눌리지도 않으므로, 흐름에서 빼내 늘 같은 크기로 세로 가운데에 둔다. 얇은
-   블록에서는 위아래로 삐져나오는데, 그 편이 안 보이는 것보다 낫다. */
+/* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 나란히 들어간다. */
+.tt-main {
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
+  display: flex; align-items: center; gap: 4px; padding-left: 3px;
+}
+/* ✓ 는 블록 높이를 따라가지 않는다. 늘 같은 크기로 세로 가운데에 앉는다. */
 .tt-check {
-  position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
-  width: 26px; height: 26px; z-index: 3; padding: 0;
+  flex: 0 0 22px; width: 22px; height: 22px; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid rgba(31,42,34,.28); border-radius: 8px;
-  background: rgba(255,255,255,.88); box-shadow: 0 1px 2px rgba(0,0,0,.14);
-  font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer;
+  border: 1.5px solid rgba(31,42,34,.28); border-radius: 7px;
+  background: rgba(255,255,255,.88); box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer;
 }
 .tt-check-on { background: var(--accent); border-color: var(--accent); color: #fff; }
-
-/* 고르는 자리에서 바로 과목을 만든다. 목록이 비어서 시작하니, 설정까지
-   들어가야만 만들 수 있으면 아무도 안 만든다. */
-.subject-field { display: flex; flex-direction: column; gap: 6px; }
-.subject-new { display: flex; align-items: center; gap: 6px; }
-.subject-new input[type="color"] { flex: 0 0 40px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.subject-new-name { flex: 1 1 auto; min-width: 0; }
-.subject-new .btn { min-height: 40px; padding: 0 12px; flex: 0 0 auto; }
 .tt-body {
   flex: 1 1 auto; min-width: 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
-  padding: 0 6px 0 34px; overflow: hidden; text-align: left;
+  padding: 0 6px 0 3px; overflow: hidden; text-align: left;
 }
-.tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
+.tt-label { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tt-time { font-size: 10px; opacity: .65; white-space: nowrap; }
+
+/* 짧은 블록. 두 줄로 쌓을 자리가 없으니 이름과 시각을 한 줄로 붙이고, 손잡이도
+   눈금만 남게 줄인다. 글자가 사라지느니 작아지는 편이 낫다. */
+.tt-seg-tight .tt-handle { flex-basis: 5px; }
+.tt-seg-tight .tt-handle::before { width: 18px; }
+.tt-seg-tight .tt-main { gap: 3px; }
+.tt-seg-tight .tt-check { flex: 0 0 19px; width: 19px; height: 19px; font-size: 12px; border-radius: 6px; }
+.tt-seg-tight .tt-body { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 5px; }
+.tt-seg-tight .tt-label { font-size: 10px; }
+.tt-seg-tight .tt-time { font-size: 9px; flex: 0 0 auto; }
 
 /* 손잡이는 블록의 위아래 끝에 가로로 눕는다. 세로 시간표에서 경계는 가로줄이니
    잡는 것도 가로줄이어야 한다.
@@ -352,9 +362,17 @@ button { font: inherit; color: inherit; }
 /* 아래 칸(달성률·일정·메모). 내용만큼만 차지하되 화면의 절반을 넘기지 않는다 -
    메모를 길게 늘여도 시간표가 밀려 사라지면 안 된다. 넘치면 여기 안에서 굴러간다. */
 .day-foot {
-  flex: 0 1 auto; min-height: 0; max-height: 38%;
+  flex: 0 1 auto; min-height: 0; max-height: 42%;
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   padding: 8px 0 calc(4px + var(--safe-b));
+  /* 굴릴 것이 남아 있을 때만 위아래에 그늘이 진다. 그늘이 없으면 잘린 카드가
+     고장난 것처럼 보인다 - 위쪽 절반이 숨어 있다는 것을 알 길이 없다.
+     local 로 깐 두 겹은 바탕색이라 끝에 닿으면 그늘을 덮어 지운다. */
+  background:
+    linear-gradient(var(--bg) 40%, rgba(244,238,224,0)) top / 100% 16px no-repeat local,
+    linear-gradient(rgba(244,238,224,0), var(--bg) 60%) bottom / 100% 16px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(43,42,35,.18), rgba(43,42,35,0)) top / 100% 7px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(43,42,35,.18), rgba(43,42,35,0)) bottom / 100% 7px no-repeat scroll;
 }
 .day-foot .card:last-child { margin-bottom: 0; }
 .page-in-left { animation: page-in-left .18s ease-out; }
@@ -540,3 +558,11 @@ body.focus-open { overflow: hidden; }
 .focus-next { border-top: 1px solid var(--line); padding-top: 20px; }
 .focus-next-title { margin: 0 0 4px; font-size: 22px; font-weight: 600; line-height: 1.25; }
 @media (prefers-reduced-motion: reduce) { .focus-fill { transition: none; } }
+
+/* 고르는 자리에서 바로 과목을 만든다. 목록이 비어서 시작하니, 설정까지
+   들어가야만 만들 수 있으면 아무도 안 만든다. */
+.subject-field { display: flex; flex-direction: column; gap: 6px; }
+.subject-new { display: flex; align-items: center; gap: 6px; }
+.subject-new input[type="color"] { flex: 0 0 40px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.subject-new-name { flex: 1 1 auto; min-width: 0; }
+.subject-new .btn { min-height: 40px; padding: 0 12px; flex: 0 0 auto; }

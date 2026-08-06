@@ -16,13 +16,21 @@
     });
   }
 
+  // 과목이 없으면 완료라는 개념도 없다. 화면에서 체크를 뺐으므로, 켜져 있던 완료
+  // 표시가 그대로 남으면 끌 방법이 사라진다. 과목을 '과목 없음'으로 바꾸거나
+  // 설정에서 과목 자체를 지웠을 때도 이 길로 들어온다.
+  function clearDone(items) {
+    return items.map((x) => (x.subjectId || !x.done ? x : { ...x, done: false }));
+  }
+
   // 이 파일이 돌려주는 모든 { todos, blocks } 는 여기를 지난다. 규칙을 함수마다
   // 따로 적으면 새로 만드는 함수에서 빠뜨린다.
   //
-  // 예전에는 여기서 "과목 없는 것의 완료를 지운다"도 했다. 이제 과목과 상관없이
-  // 체크할 수 있으므로 뺐다 - 남겨두면 체크하는 순간 저장하면서 도로 꺼진다.
+  // 순서가 중요하다. 블록을 먼저 정리해야 recompute 가 정리된 값에서 할 일의
+  // 완료를 다시 뽑는다.
   function pair(todos, blocks) {
-    return { todos: recompute(todos, blocks), blocks };
+    const next = clearDone(blocks);
+    return { todos: clearDone(recompute(todos, next)), blocks: next };
   }
 
   function setBlockDone(day, blockId, done) {

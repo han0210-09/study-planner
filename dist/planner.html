@@ -23,7 +23,7 @@
   --soft: #EDF3E9;
   --danger: #C0483C;
   --radius: 12px;
-  --tt-hour: 64px;
+  --tt-hour: 88px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -145,7 +145,7 @@ button { font: inherit; color: inherit; }
 .empty { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 .add-btn { width: 100%; }
 
-.achieve-head { display: flex; justify-content: space-between; align-items: baseline; }
+.achieve-head { display: flex; align-items: baseline; gap: 8px; }
 .achieve-value { font-size: 18px; font-weight: 700; }
 
 .events-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -218,15 +218,19 @@ button { font: inherit; color: inherit; }
 
 /* 목표와 실제가 한 줄에 나란히 선다. 두 줄이면 늘 붙어 있는 이 칸이 그만큼
    두꺼워지고, 시간표가 볼 자리를 잃는다. */
-.totals { display: flex; gap: 16px; margin-top: 8px; }
+/* 달성률과 목표·실제가 한 줄을 나눠 쓴다. */
+.sum-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sum-row .card-title { margin: 0; }
+.totals { display: flex; gap: 14px; }
+.totals-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
 .totals-row { display: flex; align-items: baseline; gap: 6px; }
 .totals-label { color: var(--muted); font-size: 12px; }
-.totals-bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.totals-bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .totals-fill { height: 100%; background: var(--accent); }
 
 /* 메모는 이제 늘 화면에 붙어 있다. 비어 있을 때까지 88px 을 차지하면 정작
    시간표가 볼 자리를 잃는다. 필요하면 오른쪽 아래를 끌어 늘릴 수 있다. */
-.memo { width: 100%; min-height: 58px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
+.memo { width: 100%; min-height: 46px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
 /* ---------- 타임테이블 (시간이 위에서 아래로 곧게 흐른다) ---------- */
 .tt-wrap { display: flex; margin-top: 8px; user-select: none; }
@@ -253,9 +257,13 @@ button { font: inherit; color: inherit; }
 
 /* overflow 를 열어둔다 - ✓ 가 얇은 블록 밖으로 삐져나와야 하기 때문이다.
    글자가 새는 것은 안쪽 .tt-main 이 막는다. */
+/* 아무리 짧은 블록에도 ✓ 와 글자가 들어가야 한다. 그래서 최소 높이를 준다 -
+   5분짜리는 제 시간(7px)보다 아래로 삐져나오지만, 안 보이는 것보다는 낫다.
+   짧은 블록일수록 z-index 를 올려(blockNode) 이웃에 가리지 않게 한다. */
 .tt-seg {
   position: absolute; left: 2px; right: 2px;
-  display: flex; flex-direction: column; overflow: visible;
+  min-height: 32px;
+  display: flex; flex-direction: column; overflow: hidden;
   border-radius: 6px;
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
@@ -264,35 +272,37 @@ button { font: inherit; color: inherit; }
 .tt-seg-lifted { opacity: .35; }
 .merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
 
-/* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 들어간다. */
-.tt-main { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; overflow: hidden; }
-/* ✓ 는 블록 높이를 따라가지 않는다. 5분(≈5px)짜리 블록 안에 갇히면 보이지도
-   눌리지도 않으므로, 흐름에서 빼내 늘 같은 크기로 세로 가운데에 둔다. 얇은
-   블록에서는 위아래로 삐져나오는데, 그 편이 안 보이는 것보다 낫다. */
+/* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 나란히 들어간다. */
+.tt-main {
+  flex: 1 1 auto; min-height: 0; overflow: hidden;
+  display: flex; align-items: center; gap: 4px; padding-left: 3px;
+}
+/* ✓ 는 블록 높이를 따라가지 않는다. 늘 같은 크기로 세로 가운데에 앉는다. */
 .tt-check {
-  position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
-  width: 26px; height: 26px; z-index: 3; padding: 0;
+  flex: 0 0 22px; width: 22px; height: 22px; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid rgba(31,42,34,.28); border-radius: 8px;
-  background: rgba(255,255,255,.88); box-shadow: 0 1px 2px rgba(0,0,0,.14);
-  font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer;
+  border: 1.5px solid rgba(31,42,34,.28); border-radius: 7px;
+  background: rgba(255,255,255,.88); box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer;
 }
 .tt-check-on { background: var(--accent); border-color: var(--accent); color: #fff; }
-
-/* 고르는 자리에서 바로 과목을 만든다. 목록이 비어서 시작하니, 설정까지
-   들어가야만 만들 수 있으면 아무도 안 만든다. */
-.subject-field { display: flex; flex-direction: column; gap: 6px; }
-.subject-new { display: flex; align-items: center; gap: 6px; }
-.subject-new input[type="color"] { flex: 0 0 40px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.subject-new-name { flex: 1 1 auto; min-width: 0; }
-.subject-new .btn { min-height: 40px; padding: 0 12px; flex: 0 0 auto; }
 .tt-body {
   flex: 1 1 auto; min-width: 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
-  padding: 0 6px 0 34px; overflow: hidden; text-align: left;
+  padding: 0 6px 0 3px; overflow: hidden; text-align: left;
 }
-.tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
+.tt-label { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tt-time { font-size: 10px; opacity: .65; white-space: nowrap; }
+
+/* 짧은 블록. 두 줄로 쌓을 자리가 없으니 이름과 시각을 한 줄로 붙이고, 손잡이도
+   눈금만 남게 줄인다. 글자가 사라지느니 작아지는 편이 낫다. */
+.tt-seg-tight .tt-handle { flex-basis: 5px; }
+.tt-seg-tight .tt-handle::before { width: 18px; }
+.tt-seg-tight .tt-main { gap: 3px; }
+.tt-seg-tight .tt-check { flex: 0 0 19px; width: 19px; height: 19px; font-size: 12px; border-radius: 6px; }
+.tt-seg-tight .tt-body { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 5px; }
+.tt-seg-tight .tt-label { font-size: 10px; }
+.tt-seg-tight .tt-time { font-size: 9px; flex: 0 0 auto; }
 
 /* 손잡이는 블록의 위아래 끝에 가로로 눕는다. 세로 시간표에서 경계는 가로줄이니
    잡는 것도 가로줄이어야 한다.
@@ -362,9 +372,17 @@ button { font: inherit; color: inherit; }
 /* 아래 칸(달성률·일정·메모). 내용만큼만 차지하되 화면의 절반을 넘기지 않는다 -
    메모를 길게 늘여도 시간표가 밀려 사라지면 안 된다. 넘치면 여기 안에서 굴러간다. */
 .day-foot {
-  flex: 0 1 auto; min-height: 0; max-height: 38%;
+  flex: 0 1 auto; min-height: 0; max-height: 42%;
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   padding: 8px 0 calc(4px + var(--safe-b));
+  /* 굴릴 것이 남아 있을 때만 위아래에 그늘이 진다. 그늘이 없으면 잘린 카드가
+     고장난 것처럼 보인다 - 위쪽 절반이 숨어 있다는 것을 알 길이 없다.
+     local 로 깐 두 겹은 바탕색이라 끝에 닿으면 그늘을 덮어 지운다. */
+  background:
+    linear-gradient(var(--bg) 40%, rgba(244,238,224,0)) top / 100% 16px no-repeat local,
+    linear-gradient(rgba(244,238,224,0), var(--bg) 60%) bottom / 100% 16px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, rgba(43,42,35,.18), rgba(43,42,35,0)) top / 100% 7px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(43,42,35,.18), rgba(43,42,35,0)) bottom / 100% 7px no-repeat scroll;
 }
 .day-foot .card:last-child { margin-bottom: 0; }
 .page-in-left { animation: page-in-left .18s ease-out; }
@@ -551,6 +569,14 @@ body.focus-open { overflow: hidden; }
 .focus-next-title { margin: 0 0 4px; font-size: 22px; font-weight: 600; line-height: 1.25; }
 @media (prefers-reduced-motion: reduce) { .focus-fill { transition: none; } }
 
+/* 고르는 자리에서 바로 과목을 만든다. 목록이 비어서 시작하니, 설정까지
+   들어가야만 만들 수 있으면 아무도 안 만든다. */
+.subject-field { display: flex; flex-direction: column; gap: 6px; }
+.subject-new { display: flex; align-items: center; gap: 6px; }
+.subject-new input[type="color"] { flex: 0 0 40px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.subject-new-name { flex: 1 1 auto; min-width: 0; }
+.subject-new .btn { min-height: 40px; padding: 0 12px; flex: 0 0 auto; }
+
 </style>
 </head>
 <body>
@@ -664,6 +690,9 @@ body.focus-open { overflow: hidden; }
   const STORAGE_KEY = "studyPlanner.v1";
   const SCHEMA_VERSION = 1;
 
+  // 없애기로 한 옛 기본 과목. 이 id 는 예전 DEFAULT_SUBJECTS 에만 있었다.
+  const LEGACY_ETC_ID = "etc";
+
   function newId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
@@ -736,15 +765,28 @@ body.focus-open { overflow: hidden; }
     return { start: lo, end: hi };
   }
 
-  // 시간표에 올린 것은 모두 센다. 예전에는 과목을 고른 블록만 셌는데, 그러면
-  // 과목을 안 고른 블록은 체크를 해도 달성률이 0% 에 머물러 고장난 것처럼
-  // 보였다. 과목은 이름표일 뿐이고, 해냈는지와는 상관이 없다.
+  // 과목을 안 고른 블록은 공부로 세지 않는다. 씻기·이동·쉬는 시간처럼 시간표에
+  // 두고 싶지만 공부는 아닌 것이 여기 들어온다. 이것까지 세면 목표 시간이
+  // 하루 종일이 되어, 숫자가 아무것도 말해주지 않는다.
+  //
+  // 거르는 자리는 합계 함수 안이다. 목표시간·실제시간·달성률·달력이 모두 이
+  // 함수들을 거치므로, 화면마다 따로 거르면 어느 하나가 빠졌을 때 값이 어긋난다.
+  function isStudy(b) {
+    return !!(b && b.subjectId);
+  }
+
   function sumPlanned(blocks) {
-    return (blocks || []).reduce((sum, b) => sum + (b.end - b.start), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum + (b.end - b.start) : sum), 0);
   }
 
   function sumDone(blocks) {
-    return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) && b.done ? sum + (b.end - b.start) : sum), 0);
+  }
+
+  // 시간표에는 있는데 합계에서 빠진 시간. 왜 목표시간이 시간표보다 적은지
+  // 화면에서 설명하려면 이 값이 필요하다.
+  function sumUncounted(blocks) {
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum : sum + (b.end - b.start)), 0);
   }
 
   // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
@@ -777,9 +819,17 @@ body.focus-open { overflow: hidden; }
     // 뜬다. 목록 자체가 없거나 모양이 틀린 것만 고친 것으로 센다.
     let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
     if (!subjects) mark();
-    const kept = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    let kept = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
     if (subjects && kept.length !== subjects.length) mark();
+
+    // 예전에는 앱이 과목 일곱 개를 미리 깔았고 그중 하나가 '기타' 였다. 무엇을
+    // 공부했는지 말해주지 않는 이름이라 없앴는데, 그때 이미 쓰던 사람의 저장에는
+    // 그대로 남는다. 그 하나만 걷어낸다 - 옛 기본값의 id 로만 알아본다.
+    // 손으로 만든 '기타' 는 id 가 다르므로 건드리지 않는다.
+    const legacy = kept.find((x) => x.id === LEGACY_ETC_ID && x.name === "기타");
+    if (legacy) kept = kept.filter((x) => x !== legacy);
     subjects = kept;
+    const drop = legacy ? legacy.id : null;
 
     // 알림 설정. settings 는 여기서 통째로 다시 지어지므로, 걸러 담지 않으면
     // 켜 둔 알림이 앱을 열 때마다 꺼진다. 참/거짓만 통과시킨다.
@@ -800,16 +850,21 @@ body.focus-open { overflow: hidden; }
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
       day.memo = typeof value.memo === "string" ? value.memo : "";
       day.updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : 0;
-      // 완료는 과목과 상관없이 그대로 읽는다. 예전에는 여기서 과목 없는 것의
-      // 완료를 지웠는데, 그러면 과목 없이 체크해 둔 것이 앱을 다시 열 때마다
-      // 소리 없이 풀린다.
+      // 과목이 없으면 완료도 없다. 화면에 체크가 없으므로, 켜져 있던 표시가
+      // 남으면 끌 방법이 사라진다. 손상이 아니라 정리이므로 mark() 하지 않는다.
+      // drop 은 걷어낸 옛 과목의 id 다. 그것을 가리키던 것은 '과목 없음' 이 된다.
+      const subjectOf = (id) => (id && id !== drop ? id : null);
       day.todos = (Array.isArray(value.todos) ? value.todos : []).filter((t) => t && typeof t.text === "string")
-        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!t.done }));
+        .map((t) => {
+          const subjectId = subjectOf(t.subjectId);
+          return { id: t.id || newId(), subjectId, text: t.text, done: !!(subjectId && t.done) };
+        });
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
-        const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
+        const subjectId = subjectOf(b && b.subjectId);
+        const block = { id: (b && b.id) || newId(), subjectId,
           text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
-          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
+          done: !!(subjectId && b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);
@@ -930,7 +985,7 @@ body.focus-open { overflow: hidden; }
   const api = {
     STORAGE_KEY, SCHEMA_VERSION,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
+    limitRange, isStudy, sumPlanned, sumDone, sumUncounted, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};
@@ -1224,13 +1279,21 @@ body.focus-open { overflow: hidden; }
     });
   }
 
+  // 과목이 없으면 완료라는 개념도 없다. 화면에서 체크를 뺐으므로, 켜져 있던 완료
+  // 표시가 그대로 남으면 끌 방법이 사라진다. 과목을 '과목 없음'으로 바꾸거나
+  // 설정에서 과목 자체를 지웠을 때도 이 길로 들어온다.
+  function clearDone(items) {
+    return items.map((x) => (x.subjectId || !x.done ? x : { ...x, done: false }));
+  }
+
   // 이 파일이 돌려주는 모든 { todos, blocks } 는 여기를 지난다. 규칙을 함수마다
   // 따로 적으면 새로 만드는 함수에서 빠뜨린다.
   //
-  // 예전에는 여기서 "과목 없는 것의 완료를 지운다"도 했다. 이제 과목과 상관없이
-  // 체크할 수 있으므로 뺐다 - 남겨두면 체크하는 순간 저장하면서 도로 꺼진다.
+  // 순서가 중요하다. 블록을 먼저 정리해야 recompute 가 정리된 값에서 할 일의
+  // 완료를 다시 뽑는다.
   function pair(todos, blocks) {
-    return { todos: recompute(todos, blocks), blocks };
+    const next = clearDone(blocks);
+    return { todos: clearDone(recompute(todos, next)), blocks: next };
   }
 
   function setBlockDone(day, blockId, done) {
@@ -4053,15 +4116,19 @@ body.focus-open { overflow: hidden; }
         ui.el("span", { class: "todo-head" }, [tag, title, nth]),
         ui.el("span", { class: "todo-when" + (row.block ? "" : " todo-when-none"), text: when }),
       ]),
-      // 과목과 상관없이 체크할 수 있다. 예전에는 과목을 골라야만 체크가
-      // 나타났는데, 할 일만 적고 저장한 사람에게는 목록이 반쯤 죽은 것처럼
-      // 보였다. 과목은 이름표일 뿐이다.
-      ui.el("label", { class: "todo-check-hit" }, [
-        ui.el("input", {
-          type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
-          onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
-        }),
-      ]),
+      // 과목이 없으면 완료를 매기지 않는다. 공부 시간에도 달성률에도 안 들어가는
+      // 시간이라 체크할 대상이 없다. 할 일 자체는 과목 없이도 목록에 남는다 -
+      // 안 보이는 것과 못 체크하는 것은 다르다.
+      //
+      // 빈 칸은 남겨 열이 어긋나지 않게 한다.
+      storeApi.isStudy(row.todo)
+        ? ui.el("label", { class: "todo-check-hit" }, [
+            ui.el("input", {
+              type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
+              onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
+            }),
+          ])
+        : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
     ]);
     attachRowGestures(node, dateKey, row, onChange);
     return node;
@@ -4100,6 +4167,9 @@ body.focus-open { overflow: hidden; }
 
   // 손가락이 이만큼 움직이면 "가만히 누르고 있는 것"이 아니다.
   const MOVE_TOLERANCE = 8;
+  // 이보다 짧으면 이름과 시각을 한 줄로 붙인다. 한 시간이 --tt-hour 이므로
+  // 이 값이 곧 "두 줄이 들어갈 만큼 높은가" 의 경계다.
+  const TIGHT_MINUTES = 35;
   // 꾹 누르는 시간. 달력·To-Do 의 길게 누르기와 같은 값이라 앱 전체에서
   // "꾹 누르기"의 느낌이 하나로 맞는다.
   const LIFT_MS = 450;
@@ -4644,37 +4714,42 @@ body.focus-open { overflow: hidden; }
     const parts = [];
     if (!sharedStart) parts.push(handle("start", false));
 
+    // ✓ 와 이름은 블록 안에 가로로 나란히 앉는다. 블록에 최소 높이가 있어
+    // (styles.css 의 .tt-seg min-height) 아무리 짧아도 둘 다 들어간다.
+    //
+    // 과목이 없으면 완료를 매기지 않는다. 공부 시간에도 달성률에도 안 들어가는
+    // 시간이라 체크할 대상이 없다.
+    const main = [];
+    if (storeApi.isStudy(block)) {
+      main.push(ui.el("button", {
+        class: "tt-check" + (block.done ? " tt-check-on" : ""), type: "button",
+        "aria-label": "완료 토글", text: block.done ? "✓" : "",
+        onclick: (e) => { if (e.detail === 0) toggleDone(dateKey, block, onChange); },
+      }));
+    }
     // 포인터로 누른 click 은 무시한다. 그 경로는 attachMove 가 같은 제스처
     // 안에서 처리한다. e.detail === 0 은 키보드(Enter/Space)라는 뜻이다.
-    parts.push(ui.el("div", { class: "tt-main" }, [
-      ui.el("button", {
-        class: "tt-body", type: "button",
-        onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
-      }, [
-        ui.el("span", { class: "tt-label", text: label }),
-        ui.el("span", { class: "tt-time", text: dt.minutesToLabel(block.start) + "~" + dt.minutesToLabel(block.end) }),
-      ]),
+    main.push(ui.el("button", {
+      class: "tt-body", type: "button",
+      onclick: (e) => { if (e.detail === 0) openBlockEditor(dateKey, block.id, onChange); },
+    }, [
+      ui.el("span", { class: "tt-label", text: label }),
+      ui.el("span", { class: "tt-time", text: dt.minutesToLabel(block.start) + "~" + dt.minutesToLabel(block.end) }),
     ]));
+    parts.push(ui.el("div", { class: "tt-main" }, main));
 
     if (!sharedEnd) parts.push(handle("end", false));
     else parts.push(handle("end", true));
 
-    // ✓ 는 블록의 흐름 밖에 둔다. 5분짜리 블록은 5px 남짓이라 그 안에 든 것은
-    // 무엇이든 손가락으로 누를 수 없다. 흐름에서 빼내면 블록이 아무리 얇아도
-    // ✓ 는 제 크기를 지키고, 위아래로 조금 삐져나올 뿐이다.
-    //
-    // 과목이 없어도 체크할 수 있다. 과목은 이름표일 뿐, 해냈는지와는 상관없다.
-    parts.push(ui.el("button", {
-      class: "tt-check" + (block.done ? " tt-check-on" : ""), type: "button",
-      "aria-label": "완료 토글", text: block.done ? "✓" : "",
-      onclick: (e) => { if (e.detail === 0) toggleDone(dateKey, block, onChange); },
-    }));
+    // 짧은 블록은 이름과 시각을 한 줄로 붙이고 글자를 줄인다. 두 줄로 쌓으면
+    // 들어갈 자리가 없어 아래쪽이 잘려 나간다.
+    const tight = minutes < TIGHT_MINUTES;
 
     const node = ui.el("div", {
-      class: "tt-seg" + (block.done ? " tt-seg-done" : ""),
+      class: "tt-seg" + (block.done ? " tt-seg-done" : "") + (tight ? " tt-seg-tight" : ""),
       dataset: { id: block.id },
-      // 짧은 블록일수록 위로 올린다. 삐져나온 ✓ 가 이웃 블록에 가리면
-      // 정작 가장 작은 블록이 못 누르는 블록이 된다.
+      // 짧은 블록일수록 위로 올린다. 최소 높이 때문에 제 시간보다 아래로
+      // 삐져나오는데, 이웃에 가리면 정작 가장 작은 블록이 못 읽는 블록이 된다.
       style: Object.assign(placeStyle(block.start, block.end), {
         background: color,
         zIndex: String(minutes < 20 ? 3 : minutes < 45 ? 2 : 1),
@@ -4819,26 +4894,35 @@ body.focus-open { overflow: hidden; }
   function summaryCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
     const ratio = storeApi.doneRatio(day.blocks);
+    const uncounted = storeApi.sumUncounted(day.blocks);
+    // 달성률과 목표·실제를 한 줄에 나란히 둔다. 세 줄로 쌓아 두었더니 아래 칸이
+    // 화면을 넘쳐, 조금만 굴려도 이 카드가 머리 없이 반토막 난 채로 보였다.
     return ui.el("section", { class: "card" }, [
-      ui.el("div", { class: "achieve-head" }, [
-        ui.el("h2", { class: "card-title", text: "달성률" }),
-        ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+      ui.el("div", { class: "sum-row" }, [
+        ui.el("div", { class: "achieve-head" }, [
+          ui.el("h2", { class: "card-title", text: "달성률" }),
+          ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+        ]),
+        ui.el("div", { class: "totals" }, [
+          ui.el("div", { class: "totals-row" }, [
+            ui.el("span", { class: "totals-label", text: "목표" }),
+            ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
+          ]),
+          ui.el("div", { class: "totals-row" }, [
+            ui.el("span", { class: "totals-label", text: "실제" }),
+            ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
+          ]),
+        ]),
       ]),
       ui.el("div", { class: "totals-bar" }, [
         ui.el("div", { class: "totals-fill", style: { width: ratio + "%" } }),
       ]),
-      // 목표와 실제를 한 줄에 나란히 둔다. 이 칸은 늘 화면에 붙어 있으므로
-      // 한 줄이라도 아끼는 만큼 시간표가 넓어진다.
-      ui.el("div", { class: "totals" }, [
-        ui.el("div", { class: "totals-row" }, [
-          ui.el("span", { class: "totals-label", text: "목표" }),
-          ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
-        ]),
-        ui.el("div", { class: "totals-row" }, [
-          ui.el("span", { class: "totals-label", text: "실제" }),
-          ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
-        ]),
-      ]),
+      // 시간표에 있는 시간이 합계에서 빠졌을 때만, 왜 숫자가 다른지 밝힌다.
+      // 이것이 없으면 시간표가 꽉 찼는데 목표가 1시간인 이유를 알 수 없다.
+      uncounted > 0
+        ? ui.el("p", { class: "totals-note",
+            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다." })
+        : null,
     ]);
   }
 

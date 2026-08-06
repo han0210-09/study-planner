@@ -283,15 +283,19 @@
         ui.el("span", { class: "todo-head" }, [tag, title, nth]),
         ui.el("span", { class: "todo-when" + (row.block ? "" : " todo-when-none"), text: when }),
       ]),
-      // 과목과 상관없이 체크할 수 있다. 예전에는 과목을 골라야만 체크가
-      // 나타났는데, 할 일만 적고 저장한 사람에게는 목록이 반쯤 죽은 것처럼
-      // 보였다. 과목은 이름표일 뿐이다.
-      ui.el("label", { class: "todo-check-hit" }, [
-        ui.el("input", {
-          type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
-          onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
-        }),
-      ]),
+      // 과목이 없으면 완료를 매기지 않는다. 공부 시간에도 달성률에도 안 들어가는
+      // 시간이라 체크할 대상이 없다. 할 일 자체는 과목 없이도 목록에 남는다 -
+      // 안 보이는 것과 못 체크하는 것은 다르다.
+      //
+      // 빈 칸은 남겨 열이 어긋나지 않게 한다.
+      storeApi.isStudy(row.todo)
+        ? ui.el("label", { class: "todo-check-hit" }, [
+            ui.el("input", {
+              type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
+              onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
+            }),
+          ])
+        : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
     ]);
     attachRowGestures(node, dateKey, row, onChange);
     return node;

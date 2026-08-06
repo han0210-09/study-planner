@@ -306,36 +306,35 @@ test("mergeAdjacent: 합칠 게 없으면 merged 0", () => {
   assert.equal(link.mergeAdjacent(day([T("t1")], [B("b1", 360, 420)])).merged, 0);
 });
 
-// ---- 완료는 과목과 상관없다 ----
+// ---- 과목 없음에는 완료가 없다 ----
+// 화면에서 체크를 뺐으므로, 켜져 있던 완료가 남으면 끌 방법이 사라진다.
 
-test("setBlockDone: 과목이 없어도 완료가 남는다", () => {
-  // 예전에는 저장하는 길목(pair)에서 도로 꺼졌다. 체크는 되는데 곧바로
-  // 풀리니 화면에서는 눌러도 아무 일이 없는 것처럼 보였다.
+test("clearDone: 과목 없는 블록은 체크해도 완료가 되지 않는다", () => {
   const d = day([], [B("b1", 300, 360, { subjectId: null })]);
   const r = link.setBlockDone(d, "b1", true);
-  assert.equal(r.blocks[0].done, true);
+  assert.equal(r.blocks[0].done, false);
 });
 
-test("setTodoDone: 과목이 없어도 완료가 남는다", () => {
+test("clearDone: 과목 없는 할 일은 체크해도 완료가 되지 않는다", () => {
   const d = day([T("t1", { subjectId: null })], []);
   const r = link.setTodoDone(d, "t1", true);
-  assert.equal(r.todos[0].done, true);
+  assert.equal(r.todos[0].done, false);
 });
 
-test("setBlockDone: 과목 있는 쪽은 그대로 완료된다", () => {
+test("clearDone: 과목 있는 쪽은 그대로 완료된다", () => {
   const d = day([T("t1")], [B("b1", 300, 360, { todoId: "t1" })]);
   const r = link.setBlockDone(d, "b1", true);
   assert.equal(r.blocks[0].done, true);
   assert.equal(r.todos[0].done, true);
 });
 
-test("commitBlock: 과목을 없애도 완료는 그대로다", () => {
+test("commitBlock: 과목을 없애면 켜져 있던 완료가 함께 내려간다", () => {
   const d = day([], [B("b1", 300, 360, { done: true })]);
   const r = link.commitBlock(d, { ...d.blocks[0], subjectId: null }, "none", "");
-  assert.equal(r.blocks[0].done, true);
+  assert.equal(r.blocks[0].done, false);
 });
 
-test("mergeAdjacent: 과목 없는 블록을 합쳐도 완료가 유지된다", () => {
+test("mergeAdjacent: 과목 없는 블록을 합쳐도 완료가 살아나지 않는다", () => {
   const d = day([], [
     B("b1", 300, 360, { subjectId: null, text: "저녁", done: true }),
     B("b2", 360, 420, { subjectId: null, text: "저녁", done: true }),
@@ -343,7 +342,7 @@ test("mergeAdjacent: 과목 없는 블록을 합쳐도 완료가 유지된다", 
   const r = link.mergeAdjacent(d);
   assert.equal(r.merged, 1);
   assert.equal(r.blocks.length, 1);
-  assert.equal(r.blocks[0].done, true);
+  assert.equal(r.blocks[0].done, false);
 });
 
 // ---- 블록에서 생긴 할 일은 시각 순서대로 들어간다 ----

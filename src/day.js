@@ -42,26 +42,35 @@
   function summaryCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
     const ratio = storeApi.doneRatio(day.blocks);
+    const uncounted = storeApi.sumUncounted(day.blocks);
+    // 달성률과 목표·실제를 한 줄에 나란히 둔다. 세 줄로 쌓아 두었더니 아래 칸이
+    // 화면을 넘쳐, 조금만 굴려도 이 카드가 머리 없이 반토막 난 채로 보였다.
     return ui.el("section", { class: "card" }, [
-      ui.el("div", { class: "achieve-head" }, [
-        ui.el("h2", { class: "card-title", text: "달성률" }),
-        ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+      ui.el("div", { class: "sum-row" }, [
+        ui.el("div", { class: "achieve-head" }, [
+          ui.el("h2", { class: "card-title", text: "달성률" }),
+          ui.el("span", { class: "achieve-value", text: ratio + "%" }),
+        ]),
+        ui.el("div", { class: "totals" }, [
+          ui.el("div", { class: "totals-row" }, [
+            ui.el("span", { class: "totals-label", text: "목표" }),
+            ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
+          ]),
+          ui.el("div", { class: "totals-row" }, [
+            ui.el("span", { class: "totals-label", text: "실제" }),
+            ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
+          ]),
+        ]),
       ]),
       ui.el("div", { class: "totals-bar" }, [
         ui.el("div", { class: "totals-fill", style: { width: ratio + "%" } }),
       ]),
-      // 목표와 실제를 한 줄에 나란히 둔다. 이 칸은 늘 화면에 붙어 있으므로
-      // 한 줄이라도 아끼는 만큼 시간표가 넓어진다.
-      ui.el("div", { class: "totals" }, [
-        ui.el("div", { class: "totals-row" }, [
-          ui.el("span", { class: "totals-label", text: "목표" }),
-          ui.el("strong", { text: dt.formatDuration(storeApi.sumPlanned(day.blocks)) }),
-        ]),
-        ui.el("div", { class: "totals-row" }, [
-          ui.el("span", { class: "totals-label", text: "실제" }),
-          ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
-        ]),
-      ]),
+      // 시간표에 있는 시간이 합계에서 빠졌을 때만, 왜 숫자가 다른지 밝힌다.
+      // 이것이 없으면 시간표가 꽉 찼는데 목표가 1시간인 이유를 알 수 없다.
+      uncounted > 0
+        ? ui.el("p", { class: "totals-note",
+            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다." })
+        : null,
     ]);
   }
 

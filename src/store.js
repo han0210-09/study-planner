@@ -4,6 +4,9 @@
   const STORAGE_KEY = "studyPlanner.v1";
   const SCHEMA_VERSION = 1;
 
+  // 없애기로 한 옛 기본 과목. 이 id 는 예전 DEFAULT_SUBJECTS 에만 있었다.
+  const LEGACY_ETC_ID = "etc";
+
   function newId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
@@ -76,15 +79,28 @@
     return { start: lo, end: hi };
   }
 
-  // 시간표에 올린 것은 모두 센다. 예전에는 과목을 고른 블록만 셌는데, 그러면
-  // 과목을 안 고른 블록은 체크를 해도 달성률이 0% 에 머물러 고장난 것처럼
-  // 보였다. 과목은 이름표일 뿐이고, 해냈는지와는 상관이 없다.
+  // 과목을 안 고른 블록은 공부로 세지 않는다. 씻기·이동·쉬는 시간처럼 시간표에
+  // 두고 싶지만 공부는 아닌 것이 여기 들어온다. 이것까지 세면 목표 시간이
+  // 하루 종일이 되어, 숫자가 아무것도 말해주지 않는다.
+  //
+  // 거르는 자리는 합계 함수 안이다. 목표시간·실제시간·달성률·달력이 모두 이
+  // 함수들을 거치므로, 화면마다 따로 거르면 어느 하나가 빠졌을 때 값이 어긋난다.
+  function isStudy(b) {
+    return !!(b && b.subjectId);
+  }
+
   function sumPlanned(blocks) {
-    return (blocks || []).reduce((sum, b) => sum + (b.end - b.start), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum + (b.end - b.start) : sum), 0);
   }
 
   function sumDone(blocks) {
-    return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
+    return (blocks || []).reduce((sum, b) => (isStudy(b) && b.done ? sum + (b.end - b.start) : sum), 0);
+  }
+
+  // 시간표에는 있는데 합계에서 빠진 시간. 왜 목표시간이 시간표보다 적은지
+  // 화면에서 설명하려면 이 값이 필요하다.
+  function sumUncounted(blocks) {
+    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum : sum + (b.end - b.start)), 0);
   }
 
   // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
@@ -117,9 +133,17 @@
     // 뜬다. 목록 자체가 없거나 모양이 틀린 것만 고친 것으로 센다.
     let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
     if (!subjects) mark();
-    const kept = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    let kept = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
     if (subjects && kept.length !== subjects.length) mark();
+
+    // 예전에는 앱이 과목 일곱 개를 미리 깔았고 그중 하나가 '기타' 였다. 무엇을
+    // 공부했는지 말해주지 않는 이름이라 없앴는데, 그때 이미 쓰던 사람의 저장에는
+    // 그대로 남는다. 그 하나만 걷어낸다 - 옛 기본값의 id 로만 알아본다.
+    // 손으로 만든 '기타' 는 id 가 다르므로 건드리지 않는다.
+    const legacy = kept.find((x) => x.id === LEGACY_ETC_ID && x.name === "기타");
+    if (legacy) kept = kept.filter((x) => x !== legacy);
     subjects = kept;
+    const drop = legacy ? legacy.id : null;
 
     // 알림 설정. settings 는 여기서 통째로 다시 지어지므로, 걸러 담지 않으면
     // 켜 둔 알림이 앱을 열 때마다 꺼진다. 참/거짓만 통과시킨다.
@@ -140,16 +164,21 @@
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
       day.memo = typeof value.memo === "string" ? value.memo : "";
       day.updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : 0;
-      // 완료는 과목과 상관없이 그대로 읽는다. 예전에는 여기서 과목 없는 것의
-      // 완료를 지웠는데, 그러면 과목 없이 체크해 둔 것이 앱을 다시 열 때마다
-      // 소리 없이 풀린다.
+      // 과목이 없으면 완료도 없다. 화면에 체크가 없으므로, 켜져 있던 표시가
+      // 남으면 끌 방법이 사라진다. 손상이 아니라 정리이므로 mark() 하지 않는다.
+      // drop 은 걷어낸 옛 과목의 id 다. 그것을 가리키던 것은 '과목 없음' 이 된다.
+      const subjectOf = (id) => (id && id !== drop ? id : null);
       day.todos = (Array.isArray(value.todos) ? value.todos : []).filter((t) => t && typeof t.text === "string")
-        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!t.done }));
+        .map((t) => {
+          const subjectId = subjectOf(t.subjectId);
+          return { id: t.id || newId(), subjectId, text: t.text, done: !!(subjectId && t.done) };
+        });
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
-        const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
+        const subjectId = subjectOf(b && b.subjectId);
+        const block = { id: (b && b.id) || newId(), subjectId,
           text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
-          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
+          done: !!(subjectId && b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);
@@ -270,7 +299,7 @@
   const api = {
     STORAGE_KEY, SCHEMA_VERSION,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
+    limitRange, isStudy, sumPlanned, sumDone, sumUncounted, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};
