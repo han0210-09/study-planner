@@ -659,3 +659,53 @@ body.focus-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .cal-in-left, .cal-in-right { animation: none; }
 }
+
+/* ---------- 로그인 / 회원가입 ---------- */
+
+/* 첫 화면이다. 위아래로 넉넉히 띄워 가운데에 앉힌다 - 칸이 셋뿐이라 화면
+   위쪽에 몰아 두면 아래가 휑하다. */
+.auth {
+  max-width: 340px; margin: 0 auto;
+  min-height: calc(100vh - 24px - var(--safe-b));
+  display: flex; flex-direction: column; justify-content: center; gap: 18px;
+}
+.auth-head { text-align: center; }
+.auth-title { margin: 0 0 6px; font-size: 24px; font-weight: 700; letter-spacing: -.3px; }
+.auth-sub { margin: 0; font-size: 13px; color: var(--muted); }
+
+.auth-form { display: flex; flex-direction: column; }
+.auth-field { display: block; margin-bottom: 12px; }
+.auth-field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+/* .field 는 text/date 만 잡는다. 여기는 email 과 password 도 써야 한다. */
+.auth-field input {
+  width: 100%; min-height: 48px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); font: inherit;
+}
+.auth-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.auth-submit { width: 100%; min-height: 48px; margin-top: 4px; font-size: 15px; }
+.auth-submit[disabled] { opacity: .6; }
+
+/* 오류는 단추 바로 위에 둔다. 무엇이 잘못됐는지 읽고 나서 다시 누르게 된다. */
+.auth-error {
+  margin: 0 0 10px; padding: 9px 11px; border-radius: var(--radius);
+  background: rgba(192,72,60,.10); border: 1px solid rgba(192,72,60,.28);
+  color: var(--danger); font-size: 13px; line-height: 1.45;
+}
+.auth-note { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+.auth-foot {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  flex-wrap: wrap; font-size: 12px; color: var(--muted);
+}
+.auth-dot { opacity: .5; }
+/* 로그인을 건너뛰는 길은 늘 열어 둔다. 다만 눈에 먼저 띄지는 않게 둔다. */
+.auth-skip { align-self: center; color: var(--muted); text-decoration: none; }
+
+/* ---------- 설정 안의 계정 칸 ---------- */
+.account { margin-bottom: 6px; }
+.account-email {
+  margin: -6px 0 10px; font-size: 12px; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.account .btn { width: 100%; }

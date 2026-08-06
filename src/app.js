@@ -60,19 +60,28 @@
   function today() { return todayKey; }
   function viewDate() { return { year: view.year, month: view.month }; }
 
+  // 화면은 셋뿐이다. 하나를 켜면 나머지는 꺼진다 - 켤 것만 적고 끌 것을
+  // 빼먹으면 두 화면이 겹쳐 뜬다.
+  const SCREENS = ["screen-auth", "screen-calendar", "screen-day"];
+  function showScreen(id) {
+    for (const s of SCREENS) document.getElementById(s).hidden = s !== id;
+    window.scrollTo(0, 0);
+  }
+
   function showCalendar(year, month) {
     if (year) view = { year, month };
-    document.getElementById("screen-day").hidden = true;
-    document.getElementById("screen-calendar").hidden = false;
-    window.scrollTo(0, 0);
+    showScreen("screen-calendar");
     SP.calendar.render(document.getElementById("screen-calendar"), view.year, view.month);
   }
 
   function showDay(dateKey) {
-    document.getElementById("screen-calendar").hidden = true;
-    document.getElementById("screen-day").hidden = false;
-    window.scrollTo(0, 0);
+    showScreen("screen-day");
     SP.day.render(document.getElementById("screen-day"), dateKey);
+  }
+
+  function showAuth(mode) {
+    showScreen("screen-auth");
+    SP.authui.render(document.getElementById("screen-auth"), mode);
   }
 
   function refreshToday() {
@@ -82,9 +91,70 @@
     if (!document.getElementById("screen-calendar").hidden) showCalendar(view.year, view.month);
   }
 
+  /* ---------- 계정 ---------- */
+
+  function signedIn() { return !!(SP.auth && SP.auth.session()); }
+
+  function accountName() {
+    const s = SP.auth && SP.auth.session();
+    return s ? (s.username || s.email) : null;
+  }
+
+  // 지금 열어야 할 저장소의 열쇠. 로그인 안 했으면 예전 그대로다.
+  function currentKey() {
+    const s = SP.auth && SP.auth.session();
+    return SP.auth
+      ? SP.auth.storageKeyFor(s && s.uid, storeApi.STORAGE_KEY)
+      : storeApi.STORAGE_KEY;
+  }
+
+  function openStore() {
+    store = storeApi.createStore(safeStorage(), currentKey());
+    return store.load();
+  }
+
+  // 처음 로그인한 계정이 비어 있고 로그인 없이 쓰던 계획이 있으면 옮겨 온다.
+  // 안 옮기면 몇 달 쓰던 사람이 로그인한 순간 빈 화면을 만난다.
+  //
+  // 계정마다 한 번만 한다. 표시를 안 남기면, 그 계정을 비우고 다시 로그인할
+  // 때마다 옛 계획이 되살아난다.
+  function adoptAnonymousData() {
+    const s = SP.auth && SP.auth.session();
+    if (!s || !s.uid) return false;
+    const storage = safeStorage();
+    const mark = "studyPlanner.adopted." + s.uid;
+    if (storage.getItem(mark)) return false;
+    try { storage.setItem(mark, "1"); } catch (e) { return false; }
+    if (!store.isEmpty()) return false;
+    const anon = storage.getItem(storeApi.STORAGE_KEY);
+    if (!anon) return false;
+    try {
+      storage.setItem(currentKey(), anon);
+    } catch (e) { return false; }
+    openStore();
+    return true;
+  }
+
+  // 로그인·로그아웃 뒤에 저장소를 갈아 끼우고 화면을 다시 그린다.
+  function afterAuthChange() {
+    flush();
+    openStore();
+    const moved = signedIn() ? adoptAnonymousData() : false;
+    todayKey = dt.plannerDateKey(new Date());
+    showCalendar(view.year, view.month);
+    if (moved) ui.toast("쓰던 계획을 이 계정으로 옮겼습니다.");
+  }
+
+  async function signOut() {
+    flush();
+    SP.auth.signOut();
+    openStore();
+    showAuth("in");
+  }
+
   function boot() {
-    store = storeApi.createStore(safeStorage());
-    const result = store.load();
+    if (SP.auth && SP.authui) SP.auth.configure(SP.authui.API_KEY);
+    const result = openStore();
     if (result.recovered) ui.showBanner("저장된 데이터 일부를 읽을 수 없어 복구했습니다.");
     if (result.readOnly) ui.showBanner("더 새로운 버전에서 만든 데이터입니다. 읽기 전용으로 엽니다.");
 
@@ -92,7 +162,15 @@
     const d = dt.parseDateKey(todayKey);
     view = { year: d.getFullYear(), month: d.getMonth() + 1 };
 
-    showCalendar(view.year, view.month);
+    // 처음 켠 사람에게는 로그인 화면을 먼저 보인다. 쓰던 사람은 그대로 앱으로
+    // 들어간다 - 어제까지 잘 쓰던 앱이 갑자기 로그인을 요구하면 안 된다.
+    // 로그인은 설정에서 언제든 할 수 있다.
+    if (!signedIn() && store.isEmpty() && SP.authui && SP.auth.isConfigured()) showAuth("up");
+    else showCalendar(view.year, view.month);
+
+    // 토큰은 한 시간짜리다. 열 때 미리 갈아 끼워 두면 실제로 쓸 때 안 기다린다.
+    // 실패해도 앱은 그대로 돈다 - 계획은 이 기기에 있다.
+    if (signedIn()) Promise.resolve(SP.auth.token()).catch(() => {});
 
     // 알림은 켜 둔 사람에게만 돈다.
     if (SP.notify) SP.notify.start();
@@ -121,7 +199,8 @@
     return !!choice && choice.outcome === "accepted";
   }
 
-  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, today, viewDate, store: () => store,
+  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, showAuth, today, viewDate,
+    store: () => store, signedIn, accountName, afterAuthChange, signOut, currentKey,
     installPrompt: () => installEvent, install };
   document.addEventListener("DOMContentLoaded", boot);
 })(typeof globalThis !== "undefined" ? globalThis : window);

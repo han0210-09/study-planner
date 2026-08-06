@@ -616,6 +616,9 @@
     ui.openSheet({
       title: "설정",
       body: [
+        ui.el("h3", { class: "sheet-sub", text: "계정" }),
+        SP.authui.accountSection(onDone),
+
         ui.el("h3", { class: "sheet-sub", text: "과목" }),
         state.settings.subjects.length
           ? ui.el("div", { class: "subject-list" }, state.settings.subjects.map(subjectRow))

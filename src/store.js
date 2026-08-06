@@ -245,7 +245,11 @@
     };
   }
 
-  function createStore(storage) {
+  // key 를 주면 그 열쇠를 쓴다. 로그인한 사람마다 저장소를 따로 두기 위해서다
+  // (auth.storageKeyFor 참고). 안 주면 예전 그대로다 - 로그인 없이 쓰던 데이터가
+  // 그 자리에 남아 있어야 한다.
+  function createStore(storage, key) {
+    const KEY = key || STORAGE_KEY;
     let state = sanitizeState(null).state;
     let error = null;
     let readOnly = false;
@@ -254,12 +258,12 @@
       let parsed = null;
       let corrupt = false;
       try {
-        const text = storage.getItem(STORAGE_KEY);
+        const text = storage.getItem(KEY);
         if (text) parsed = JSON.parse(text);
       } catch (e) {
         corrupt = true;
-        try { storage.setItem(STORAGE_KEY + ".corrupt." + Date.now(), storage.getItem(STORAGE_KEY) || ""); } catch (_) {}
-        try { storage.removeItem(STORAGE_KEY); } catch (_) {}
+        try { storage.setItem(KEY + ".corrupt." + Date.now(), storage.getItem(KEY) || ""); } catch (_) {}
+        try { storage.removeItem(KEY); } catch (_) {}
       }
       const result = sanitizeState(parsed);
       state = result.state;
@@ -270,7 +274,7 @@
     function save() {
       if (readOnly) return false;
       try {
-        storage.setItem(STORAGE_KEY, JSON.stringify(state));
+        storage.setItem(KEY, JSON.stringify(state));
         error = null;
         return true;
       } catch (e) {
@@ -293,7 +297,14 @@
       return next;
     }
 
-    return { getState, getDay, setDay, save, load, lastError: () => error, isReadOnly: () => readOnly };
+    // isEmpty 는 "이 계정에 아직 아무것도 없다"를 묻는다. 처음 로그인할 때
+    // 쓰던 데이터를 그 계정으로 옮길지 고르는 기준이 된다.
+    function isEmpty() {
+      return Object.keys(state.days).length === 0 && state.events.length === 0;
+    }
+
+    return { getState, getDay, setDay, save, load, isEmpty, key: () => KEY,
+      lastError: () => error, isReadOnly: () => readOnly };
   }
 
   const api = {
