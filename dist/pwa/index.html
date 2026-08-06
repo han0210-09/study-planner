@@ -410,6 +410,16 @@ button { font: inherit; color: inherit; }
 
 .menu-danger { color: var(--danger); }
 
+/* 자동으로 짜기. 넣기 전에 무엇이 어디로 가는지 보여주는 칸이다. */
+.plan-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.field-inline { flex: 1 1 30%; min-width: 96px; }
+.plan-preview { max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; }
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.plan-row:last-child { border-bottom: 0; }
+.plan-when { flex: 0 0 auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plan-what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .subject-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .subject-row { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
 .subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -464,6 +474,17 @@ button { font: inherit; color: inherit; }
 .row-add input {
   flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px;
   border: 1px solid var(--line); border-radius: var(--radius); font: inherit;
+}
+
+/* 인쇄. 화면을 그대로 뽑으면 탭·손잡이·버튼까지 찍힌다. 캔버스로 다시 그린
+   그림 한 장만 남기고 나머지는 종이에서 지운다. */
+.print-sheet { display: none; }
+@media print {
+  body { background: #fff; }
+  body > *:not(.print-sheet) { display: none !important; }
+  .print-sheet { display: block; }
+  .print-sheet img { width: 100%; height: auto; }
+  @page { margin: 12mm; }
 }
 
 </style>
@@ -1325,6 +1346,142 @@ button { font: inherit; color: inherit; }
 </script>
   <script>
 (function (root) {
+  const dt = typeof require !== "undefined" ? require("./datetime.js") : root.SP.datetime;
+
+  // 하루를 자동으로 채운다.
+  //
+  // 짜는 사람이 정해 주는 것은 "무엇을 할지"뿐이고, "언제 할지"는 매번 빈 칸을
+  // 눈으로 찾아 손으로 끌어야 했다. 할 일이 대여섯 개만 되어도 그 일이 계획
+  // 자체보다 오래 걸린다. 여기서 하는 일은 그 자리 찾기 하나다.
+  //
+  // 규칙은 만들어 내지 않았다. 시험이 가까운 과목을 먼저, 이미 잡아둔 것은
+  // 건드리지 않고, 길게 이어 앉히되 쉬는 시간을 끼운다 - 이 셋뿐이다.
+
+  const DEFAULT_CHUNK = 50;      // 한 번에 앉히는 길이
+  const DEFAULT_BREAK = 10;      // 덩어리 사이에 두는 틈
+  const MIN_CHUNK = 20;          // 이보다 짧게 쪼개지 않는다. 앉자마자 일어나게 된다.
+
+  // 이미 잡혀 있는 블록 사이의 빈 자리. 정렬해서 훑는다.
+  function gapsOf(blocks, from, to) {
+    const start = from === undefined ? dt.DAY_START : from;
+    const end = to === undefined ? dt.DAY_END : to;
+    const sorted = (blocks || []).slice().sort((a, b) => a.start - b.start);
+    const gaps = [];
+    let cursor = start;
+    for (const b of sorted) {
+      if (b.end <= start || b.start >= end) continue;
+      if (b.start > cursor) gaps.push({ start: cursor, end: Math.min(b.start, end) });
+      cursor = Math.max(cursor, b.end);
+    }
+    if (cursor < end) gaps.push({ start: cursor, end });
+    return gaps.filter((g) => g.end - g.start >= MIN_CHUNK);
+  }
+
+  // 시험이 가까운 것이 먼저다. 일정이 없는 것은 뒤로 보내되, 서로의 순서는
+  // 원래 목록 순서를 지킨다 - 이유 없이 뒤섞이면 왜 이 차례인지 설명할 수 없다.
+  //
+  // 일정에는 과목 칸이 없다. 그래서 일정 제목에 과목 이름이나 할 일 이름이
+  // 들어 있는지로 짝을 맞춘다 - "국어 수행평가" 는 국어와 짝이 된다.
+  function urgencyOf(events, names, fromKey) {
+    const words = (names || []).filter(Boolean);
+    if (words.length === 0) return null;
+    let best = null;
+    for (const e of events || []) {
+      if (!e.title || e.endDate < fromKey) continue;
+      if (!words.some((w) => e.title.includes(w) || w.includes(e.title))) continue;
+      const days = dt.daysBetween(fromKey, e.startDate);
+      if (best === null || days < best) best = days;
+    }
+    return best;
+  }
+
+  // subjectName 은 과목 id 를 이름으로 바꾸는 함수다. 이 파일은 과목 목록을
+  // 모르므로 부르는 쪽에서 넘긴다.
+  function ordered(todos, events, fromKey, subjectName) {
+    const nameOf = subjectName || (() => "");
+    return (todos || []).map((t, i) => ({ todo: t, i, urgency: urgencyOf(events, [nameOf(t.subjectId), t.text], fromKey) }))
+      .sort((a, b) => {
+        if (a.urgency === null && b.urgency === null) return a.i - b.i;
+        if (a.urgency === null) return 1;
+        if (b.urgency === null) return -1;
+        return a.urgency - b.urgency || a.i - b.i;
+      })
+      .map((x) => x.todo);
+  }
+
+  // 한 할 일에 줄 시간을 덩어리로 쪼갠다. 두 시간을 통째로 앉히면 아무도
+  // 안 지킨다. chunk 마다 쉬는 틈을 두되, 마지막 덩어리 뒤에는 두지 않는다.
+  function place(gaps, minutes, chunk, gap) {
+    const out = [];
+    let left = minutes;
+    for (const g of gaps) {
+      let cursor = g.start;
+      while (left >= MIN_CHUNK && g.end - cursor >= MIN_CHUNK) {
+        const take = Math.min(chunk, left, g.end - cursor);
+        const snapped = Math.floor(take / dt.SLOT) * dt.SLOT;
+        if (snapped < MIN_CHUNK) break;
+        out.push({ start: cursor, end: cursor + snapped });
+        left -= snapped;
+        cursor += snapped + gap;
+      }
+      if (left < MIN_CHUNK) break;
+    }
+    return { slots: out, left };
+  }
+
+  // 이미 블록이 있는 할 일은 건드리지 않는다. 손으로 잡아둔 시간을 자동이
+  // 옮기면, 한 번 눌렀다가 어제 짜둔 것이 통째로 흐트러진다.
+  function unplaced(day) {
+    return (day.todos || []).filter((t) => !(day.blocks || []).some((b) => b.todoId === t.id));
+  }
+
+  // 돌려주는 것은 새로 만들 블록의 목록이다. 저장은 부르는 쪽이 한다 -
+  // 미리보기를 보여주고 나서 결정하게 하려면 여기서 저장하면 안 된다.
+  function plan(day, events, fromKey, options) {
+    const o = options || {};
+    const chunk = o.chunk || DEFAULT_CHUNK;
+    const gap = o.gap === undefined ? DEFAULT_BREAK : o.gap;
+    const from = o.from === undefined ? dt.DAY_START : o.from;
+    const to = o.to === undefined ? dt.DAY_END : o.to;
+
+    const targets = ordered(unplaced(day), events, fromKey, o.subjectName);
+    if (targets.length === 0) return { blocks: [], skipped: [] };
+
+    // 할 일마다 정해진 만큼만 준다. 빈 시간을 할 일 수로 나눠 가지면 세 개를
+    // 넣었을 때 하나가 일곱 시간이 되어, 새벽 다섯 시부터 새벽 두 시까지 하루가
+    // 통째로 채워진다. 아무도 그렇게 공부하지 않고, 그런 계획은 지켜지지 않는다.
+    const each = Math.max(MIN_CHUNK, o.each || DEFAULT_CHUNK);
+
+    let gaps = gapsOf(day.blocks, from, to);
+    const made = [];
+    const skipped = [];
+    for (const todo of targets) {
+      const got = place(gaps, each, chunk, gap);
+      if (got.slots.length === 0) { skipped.push(todo); continue; }
+      for (const s of got.slots) {
+        made.push({ subjectId: todo.subjectId || null, text: todo.text, todoId: todo.id,
+          start: s.start, end: s.end, done: false });
+      }
+      // 다음 할 일은 방금 앉힌 것을 피해 자리를 찾는다. 방금 앉힌 것의 뒤에
+      // 쉬는 틈을 붙여서 잰다 - 안 그러면 국어가 끝나는 그 분에 수학이 시작해,
+      // 덩어리 안에는 쉬는 시간이 있는데 할 일 사이에는 없는 이상한 표가 된다.
+      const padded = made.map((b) => ({ ...b, end: Math.min(to, b.end + gap) }));
+      gaps = gapsOf((day.blocks || []).concat(padded), from, to);
+    }
+    made.sort((a, b) => a.start - b.start);
+    return { blocks: made, skipped };
+  }
+
+  const api = { DEFAULT_CHUNK, DEFAULT_BREAK, MIN_CHUNK, gapsOf, ordered, place, unplaced, plan };
+
+  root.SP = root.SP || {};
+  root.SP.auto = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
   const store = typeof require !== "undefined" ? require("./store.js") : root.SP.store;
 
   // 과목 없는 블록의 색. 베이지 바탕 위라 차가운 회색은 때가 탄 것처럼 보인다.
@@ -1937,6 +2094,241 @@ button { font: inherit; color: inherit; }
   const dt = SP.datetime;
   const storeApi = SP.store;
   const subjectsApi = SP.subjects;
+  const ui = SP.ui;
+
+  // 일정표를 그림으로 내보내고 종이로 뽑는다.
+  //
+  // 화면을 그대로 찍지 않고 캔버스에 다시 그린다. 화면 것은 폰 너비에 맞춰
+  // 글자가 잘리고 손잡이 같은 것이 함께 찍힌다. 여기서 그리는 것은 "읽을
+  // 사람"을 위한 그림이라, 만질 것은 빼고 읽을 것만 넣는다.
+
+  const W = 900;          // 그림 너비
+  const PAD = 40;
+  const HEAD = 130;
+  const HOUR = 62;        // 한 시간의 높이
+  const LABEL_W = 74;
+
+  const INK = "#2B2A23";
+  const MUTED = "#7C7362";
+  const LINE = "#E2D9C6";
+  const PAPER = "#FFFCF5";
+  const ACCENT = "#3E8E5A";
+
+  // 시간표에 블록이 있으면 그 범위만, 없으면 아침부터 밤까지.
+  function rangeOf(blocks) {
+    if (!blocks || blocks.length === 0) return { from: 540, to: 1380 };
+    let from = Math.floor(Math.min.apply(null, blocks.map((b) => b.start)) / 60) * 60;
+    let to = Math.ceil(Math.max.apply(null, blocks.map((b) => b.end)) / 60) * 60;
+    // 너무 얇으면 읽기 어렵다. 최소 여섯 시간은 보여준다.
+    if (to - from < 360) to = Math.min(dt.DAY_END, from + 360);
+    return { from, to };
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const radius = Math.min(r, h / 2, w / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  }
+
+  // 한 줄이 칸을 넘으면 잘라내고 말줄임을 붙인다. 캔버스에는 줄바꿈이 없다.
+  function fit(ctx, text, max) {
+    if (ctx.measureText(text).width <= max) return text;
+    let cut = text;
+    while (cut.length > 1 && ctx.measureText(cut + "…").width > max) cut = cut.slice(0, -1);
+    return cut + "…";
+  }
+
+  function draw(dateKey) {
+    const state = SP.app.state();
+    const day = SP.app.store().getDay(dateKey);
+    const subjects = state.settings.subjects;
+    const blocks = (day.blocks || []).slice().sort((a, b) => a.start - b.start);
+    const range = rangeOf(blocks);
+    const from = range.from;
+    const to = range.to;
+    const rows = (to - from) / 60;
+
+    const canvas = document.createElement("canvas");
+    const scale = 2; // 폰에서 봐도 흐리지 않게 두 배로 그린다
+    const height = HEAD + rows * HOUR + PAD;
+    canvas.width = W * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(0, 0, W, height);
+
+    // ---- 머리말 ----
+    ctx.fillStyle = INK;
+    ctx.font = "700 32px 'Malgun Gothic', sans-serif";
+    ctx.fillText(dt.formatDateKorean(dateKey), PAD, 46);
+
+    const ratio = storeApi.doneRatio(day.blocks);
+    ctx.font = "16px 'Malgun Gothic', sans-serif";
+    ctx.fillStyle = MUTED;
+    ctx.fillText("목표 " + dt.formatDuration(storeApi.sumPlanned(day.blocks)) +
+      "   실제 " + dt.formatDuration(storeApi.sumDone(day.blocks)), PAD, 78);
+
+    ctx.font = "700 30px 'Malgun Gothic', sans-serif";
+    ctx.fillStyle = ACCENT;
+    ctx.textAlign = "right";
+    ctx.fillText(ratio + "%", W - PAD, 52);
+    ctx.textAlign = "left";
+
+    // 달성률 막대
+    const barY = 96;
+    ctx.fillStyle = "#E6DDC9";
+    roundRect(ctx, PAD, barY, W - PAD * 2, 8, 4);
+    ctx.fill();
+    if (ratio > 0) {
+      ctx.fillStyle = ACCENT;
+      roundRect(ctx, PAD, barY, (W - PAD * 2) * (ratio / 100), 8, 4);
+      ctx.fill();
+    }
+
+    // ---- 시간 눈금 ----
+    const gridX = PAD + LABEL_W;
+    const gridW = W - PAD - gridX;
+    const yOf = (m) => HEAD + ((m - from) / 60) * HOUR;
+
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1;
+    ctx.font = "14px 'Malgun Gothic', sans-serif";
+    for (let i = 0; i <= rows; i++) {
+      const y = HEAD + i * HOUR;
+      ctx.beginPath();
+      ctx.moveTo(gridX, y + 0.5);
+      ctx.lineTo(W - PAD, y + 0.5);
+      ctx.stroke();
+      if (i < rows) {
+        ctx.fillStyle = MUTED;
+        ctx.fillText(dt.minutesToLabel(from + i * 60), PAD, y + 12);
+      }
+    }
+
+    // ---- 블록 ----
+    for (const b of blocks) {
+      if (b.end <= from || b.start >= to) continue;
+      const y = yOf(Math.max(b.start, from));
+      const h = Math.max(6, yOf(Math.min(b.end, to)) - y);
+      ctx.fillStyle = subjectsApi.colorOf(subjects, b.subjectId);
+      roundRect(ctx, gridX + 3, y + 1, gridW - 6, h - 2, 6);
+      ctx.fill();
+
+      const name = subjectsApi.nameOf(subjects, b.subjectId);
+      const label = [name, b.text].filter(Boolean).join(" · ") || "이름 없음";
+      const time = dt.minutesToLabel(b.start) + "~" + dt.minutesToLabel(b.end);
+
+      // 다 한 것에만 체크를 그린다. 종이에서는 누를 수 없으니 표시로만 둔다.
+      let textX = gridX + 14;
+      if (b.done) {
+        ctx.fillStyle = ACCENT;
+        roundRect(ctx, gridX + 12, y + h / 2 - 9, 18, 18, 5);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "700 13px 'Malgun Gothic', sans-serif";
+        ctx.fillText("✓", gridX + 17, y + h / 2 + 1);
+        textX = gridX + 38;
+      }
+
+      // 30분보다 짧으면 두 줄이 안 들어간다. 시각과 이름을 한 줄로 붙인다.
+      ctx.fillStyle = INK;
+      if (h >= 30) {
+        ctx.font = "600 16px 'Malgun Gothic', sans-serif";
+        ctx.fillText(fit(ctx, label, gridW - (textX - gridX) - 120), textX, y + h / 2 - 8);
+        ctx.font = "13px 'Malgun Gothic', sans-serif";
+        ctx.fillStyle = MUTED;
+        ctx.fillText(time, textX, y + h / 2 + 10);
+      } else {
+        ctx.font = "600 12px 'Malgun Gothic', sans-serif";
+        ctx.fillText(fit(ctx, time + "  " + label, gridW - (textX - gridX) - 20), textX, y + h / 2);
+      }
+    }
+
+    // ---- 메모 ----
+    if (day.memo) {
+      ctx.fillStyle = MUTED;
+      ctx.font = "14px 'Malgun Gothic', sans-serif";
+      const flat = day.memo.split(/\s+/).join(" ");
+      ctx.fillText(fit(ctx, "메모  " + flat, W - PAD * 2), PAD, height - PAD + 6);
+    }
+
+    return canvas;
+  }
+
+  function fileName(dateKey) {
+    return "일정표-" + dateKey + ".png";
+  }
+
+  // 폰에서는 내려받기보다 공유 창이 낫다. 사진첩·메신저로 바로 보낼 수 있다.
+  // 공유를 못 하는 곳에서는 내려받기로 떨어진다.
+  async function saveImage(dateKey) {
+    const canvas = draw(dateKey);
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    if (!blob) { ui.toast("그림을 만들지 못했습니다."); return; }
+    const name = fileName(dateKey);
+    if (typeof File === "function" && navigator.canShare) {
+      const file = new File([blob], name, { type: "image/png" });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: name });
+          return;
+        } catch (e) {
+          // 공유 창을 그냥 닫은 것이면 내려받기까지 할 이유가 없다.
+          if (e && e.name === "AbortError") return;
+        }
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = ui.el("a", { href: url, download: name });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    ui.toast("그림으로 저장했습니다.");
+  }
+
+  // 인쇄도 같은 그림을 쓴다. 화면을 그대로 뽑으면 손잡이와 탭까지 찍힌다.
+  function print(dateKey) {
+    const canvas = draw(dateKey);
+    const img = ui.el("img", { src: canvas.toDataURL("image/png"), alt: "일정표" });
+    const host = ui.el("div", { class: "print-sheet" }, [img]);
+    document.body.appendChild(host);
+
+    let cleaned = false;
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      host.remove();
+      window.removeEventListener("afterprint", cleanup);
+    }
+    window.addEventListener("afterprint", cleanup);
+    // 그림이 붙기 전에 인쇄창이 뜨면 빈 종이가 나온다.
+    if (img.complete) setTimeout(() => window.print(), 0);
+    else img.onload = () => window.print();
+    // afterprint 를 안 보내는 브라우저가 있다. 남은 그림을 뒤에서 치운다.
+    setTimeout(cleanup, 60000);
+  }
+
+  const api = { draw, rangeOf, fit, fileName, saveImage, print };
+  SP.export = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(typeof globalThis !== "undefined" ? globalThis : window);
+
+</script>
+  <script>
+(function (root) {
+  const SP = (root.SP = root.SP || {});
+  const dt = SP.datetime;
+  const storeApi = SP.store;
+  const subjectsApi = SP.subjects;
   const eventsApi = SP.events;
   const clip = SP.clipboard;
   const ui = SP.ui;
@@ -2123,6 +2515,115 @@ button { font: inherit; color: inherit; }
 
   /* ---------- 하루 메뉴 ---------- */
 
+  /* ---------- 자동으로 짜기 ---------- */
+
+  // 시간 안 잡은 할 일을 빈 시간에 앉힌다. 넣기 전에 무엇이 어디로 가는지
+  // 보여준다 - 눌렀더니 시간표가 통째로 바뀌어 있으면 되돌릴 방법을 먼저
+  // 찾게 된다.
+  function autoPlan(dateKey, onDone) {
+    const state = SP.app.state();
+    const autoApi = SP.auto;
+
+    // 오늘이면 지금 시각부터. 이미 지나간 시간에 계획을 넣어봐야 소용없다.
+    function defaultFrom() {
+      if (dateKey !== SP.app.today()) return 540; // 09:00
+      const now = new Date();
+      let m = now.getHours() * 60 + now.getMinutes();
+      if (now.getHours() < dt.DAY_BOUNDARY_HOUR) m += 1440;
+      return dt.clampToDay(Math.ceil(m / dt.SLOT) * dt.SLOT);
+    }
+
+    let from = defaultFrom();
+    let to = 1380; // 23:00
+    let each = autoApi.DEFAULT_CHUNK;
+
+    const preview = ui.el("div", { class: "plan-preview" });
+    let planned = { blocks: [], skipped: [] };
+
+    function compute() {
+      const day = SP.app.store().getDay(dateKey);
+      planned = autoApi.plan(day, state.events, dateKey, {
+        from, to, each,
+        subjectName: (id) => subjectsApi.nameOf(state.settings.subjects, id),
+      });
+      paint();
+    }
+
+    function paint() {
+      ui.clear(preview);
+      if (planned.blocks.length === 0) {
+        preview.appendChild(ui.el("p", { class: "empty",
+          text: autoApi.unplaced(SP.app.store().getDay(dateKey)).length === 0
+            ? "시간을 안 잡은 할 일이 없습니다."
+            : "이 시간대에는 넣을 자리가 없습니다." }));
+        return;
+      }
+      preview.appendChild(ui.el("ul", { class: "plan-list" }, planned.blocks.map((b) =>
+        ui.el("li", { class: "plan-row" }, [
+          ui.el("span", { class: "plan-when",
+            text: dt.minutesToLabel(b.start) + "~" + dt.minutesToLabel(b.end) }),
+          ui.el("span", { class: "plan-what", text: b.text }),
+        ]))));
+      if (planned.skipped.length) {
+        preview.appendChild(ui.el("p", { class: "empty",
+          text: "자리가 없어 못 넣음: " + planned.skipped.map((t) => t.text).join(", ") }));
+      }
+    }
+
+    const timeField = (label, get, set) => {
+      const input = ui.el("input", { type: "time", value: hhmm(get()),
+        onchange: (e) => { const v = parseHHMM(e.target.value); if (v !== null) { set(v); compute(); } } });
+      return ui.el("label", { class: "field field-inline" }, [ui.el("span", { text: label }), input]);
+    };
+
+    const eachSelect = ui.el("select", { class: "subject-select",
+      onchange: (e) => { each = Number(e.target.value); compute(); } },
+      [30, 50, 60, 90, 120].map((m) =>
+        ui.el("option", { value: String(m), text: dt.formatDuration(m), selected: m === each })));
+
+    function apply() {
+      if (planned.blocks.length === 0) { ui.toast("넣을 것이 없습니다."); return; }
+      let day = SP.app.store().getDay(dateKey);
+      for (const b of planned.blocks) {
+        const block = { ...b, id: storeApi.newId() };
+        day = SP.link.commitBlock(day, block, block.todoId, block.text);
+      }
+      SP.app.saveDay(dateKey, day);
+      ui.closeSheet();
+      if (onDone) onDone();
+      ui.toast(planned.blocks.length + "개를 넣었습니다.");
+    }
+
+    compute();
+    ui.openSheet({
+      title: "자동으로 짜기",
+      body: [
+        ui.el("p", { class: "sheet-sub", text: "시간을 안 잡은 할 일만 넣습니다. 이미 잡아둔 것은 건드리지 않습니다." }),
+        ui.el("div", { class: "plan-fields" }, [
+          timeField("시작", () => from, (v) => { from = v; }),
+          timeField("종료", () => to, (v) => { to = v; }),
+          ui.el("label", { class: "field field-inline" }, [ui.el("span", { text: "하나당" }), eachSelect]),
+        ]),
+        ui.el("p", { class: "sheet-sub", text: "이렇게 들어갑니다" }),
+        preview,
+      ],
+      actions: [
+        ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
+        ui.el("button", { class: "btn btn-primary", text: "넣기", onclick: apply }),
+      ],
+    });
+  }
+
+  const hhmm = (m) => dt.minutesToLabel(m);
+  function parseHHMM(v) {
+    const [h, m] = String(v).split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    let out = h * 60 + m;
+    // 자정을 넘긴 시각은 다음날로 읽는다. 하루가 05:00 에 시작하기 때문이다.
+    if (out < dt.DAY_BOUNDARY_HOUR * 60) out += 1440;
+    return dt.clampToDay(out);
+  }
+
   function dayMenu(dateKey, onDone) {
     const state = SP.app.state();
 
@@ -2162,10 +2663,13 @@ button { font: inherit; color: inherit; }
           ui.el("button", { class: "menu-item", text: "이 날 복사", onclick: copyDay }),
           ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
           ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "자동으로 짜기", onclick: () => { ui.closeSheet(); autoPlan(dateKey, onDone); } }),
           ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
           // 사전이 모으는 할 일은 날짜와 무관하지만, 거기서 고른 것을 넣을 곳은
           // 이 날짜다. 그래서 날짜를 함께 넘긴다.
           ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "그림으로 내보내기", onclick: () => { ui.closeSheet(); SP.export.saveImage(dateKey); } }),
+          ui.el("button", { class: "menu-item", text: "인쇄", onclick: () => { ui.closeSheet(); SP.export.print(dateKey); } }),
           ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
           ui.el("button", { class: "menu-item menu-danger", text: "하루 초기화", onclick: resetDay }),
         ]),
@@ -2275,7 +2779,8 @@ button { font: inherit; color: inherit; }
     });
   }
 
-  const api = { dayMenu, eventEditor, pasteSheet, settings };
+  const api = {
+    autoPlan, dayMenu, eventEditor, pasteSheet, settings };
   SP.sheets = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);

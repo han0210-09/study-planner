@@ -400,6 +400,16 @@ button { font: inherit; color: inherit; }
 
 .menu-danger { color: var(--danger); }
 
+/* 자동으로 짜기. 넣기 전에 무엇이 어디로 가는지 보여주는 칸이다. */
+.plan-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.field-inline { flex: 1 1 30%; min-width: 96px; }
+.plan-preview { max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; }
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.plan-row:last-child { border-bottom: 0; }
+.plan-when { flex: 0 0 auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plan-what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .subject-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .subject-row { display: grid; grid-template-columns: 44px 1fr 44px; gap: 8px; align-items: center; }
 .subject-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -454,4 +464,15 @@ button { font: inherit; color: inherit; }
 .row-add input {
   flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px;
   border: 1px solid var(--line); border-radius: var(--radius); font: inherit;
+}
+
+/* 인쇄. 화면을 그대로 뽑으면 탭·손잡이·버튼까지 찍힌다. 캔버스로 다시 그린
+   그림 한 장만 남기고 나머지는 종이에서 지운다. */
+.print-sheet { display: none; }
+@media print {
+  body { background: #fff; }
+  body > *:not(.print-sheet) { display: none !important; }
+  .print-sheet { display: block; }
+  .print-sheet img { width: 100%; height: auto; }
+  @page { margin: 12mm; }
 }

@@ -189,6 +189,115 @@
 
   /* ---------- 하루 메뉴 ---------- */
 
+  /* ---------- 자동으로 짜기 ---------- */
+
+  // 시간 안 잡은 할 일을 빈 시간에 앉힌다. 넣기 전에 무엇이 어디로 가는지
+  // 보여준다 - 눌렀더니 시간표가 통째로 바뀌어 있으면 되돌릴 방법을 먼저
+  // 찾게 된다.
+  function autoPlan(dateKey, onDone) {
+    const state = SP.app.state();
+    const autoApi = SP.auto;
+
+    // 오늘이면 지금 시각부터. 이미 지나간 시간에 계획을 넣어봐야 소용없다.
+    function defaultFrom() {
+      if (dateKey !== SP.app.today()) return 540; // 09:00
+      const now = new Date();
+      let m = now.getHours() * 60 + now.getMinutes();
+      if (now.getHours() < dt.DAY_BOUNDARY_HOUR) m += 1440;
+      return dt.clampToDay(Math.ceil(m / dt.SLOT) * dt.SLOT);
+    }
+
+    let from = defaultFrom();
+    let to = 1380; // 23:00
+    let each = autoApi.DEFAULT_CHUNK;
+
+    const preview = ui.el("div", { class: "plan-preview" });
+    let planned = { blocks: [], skipped: [] };
+
+    function compute() {
+      const day = SP.app.store().getDay(dateKey);
+      planned = autoApi.plan(day, state.events, dateKey, {
+        from, to, each,
+        subjectName: (id) => subjectsApi.nameOf(state.settings.subjects, id),
+      });
+      paint();
+    }
+
+    function paint() {
+      ui.clear(preview);
+      if (planned.blocks.length === 0) {
+        preview.appendChild(ui.el("p", { class: "empty",
+          text: autoApi.unplaced(SP.app.store().getDay(dateKey)).length === 0
+            ? "시간을 안 잡은 할 일이 없습니다."
+            : "이 시간대에는 넣을 자리가 없습니다." }));
+        return;
+      }
+      preview.appendChild(ui.el("ul", { class: "plan-list" }, planned.blocks.map((b) =>
+        ui.el("li", { class: "plan-row" }, [
+          ui.el("span", { class: "plan-when",
+            text: dt.minutesToLabel(b.start) + "~" + dt.minutesToLabel(b.end) }),
+          ui.el("span", { class: "plan-what", text: b.text }),
+        ]))));
+      if (planned.skipped.length) {
+        preview.appendChild(ui.el("p", { class: "empty",
+          text: "자리가 없어 못 넣음: " + planned.skipped.map((t) => t.text).join(", ") }));
+      }
+    }
+
+    const timeField = (label, get, set) => {
+      const input = ui.el("input", { type: "time", value: hhmm(get()),
+        onchange: (e) => { const v = parseHHMM(e.target.value); if (v !== null) { set(v); compute(); } } });
+      return ui.el("label", { class: "field field-inline" }, [ui.el("span", { text: label }), input]);
+    };
+
+    const eachSelect = ui.el("select", { class: "subject-select",
+      onchange: (e) => { each = Number(e.target.value); compute(); } },
+      [30, 50, 60, 90, 120].map((m) =>
+        ui.el("option", { value: String(m), text: dt.formatDuration(m), selected: m === each })));
+
+    function apply() {
+      if (planned.blocks.length === 0) { ui.toast("넣을 것이 없습니다."); return; }
+      let day = SP.app.store().getDay(dateKey);
+      for (const b of planned.blocks) {
+        const block = { ...b, id: storeApi.newId() };
+        day = SP.link.commitBlock(day, block, block.todoId, block.text);
+      }
+      SP.app.saveDay(dateKey, day);
+      ui.closeSheet();
+      if (onDone) onDone();
+      ui.toast(planned.blocks.length + "개를 넣었습니다.");
+    }
+
+    compute();
+    ui.openSheet({
+      title: "자동으로 짜기",
+      body: [
+        ui.el("p", { class: "sheet-sub", text: "시간을 안 잡은 할 일만 넣습니다. 이미 잡아둔 것은 건드리지 않습니다." }),
+        ui.el("div", { class: "plan-fields" }, [
+          timeField("시작", () => from, (v) => { from = v; }),
+          timeField("종료", () => to, (v) => { to = v; }),
+          ui.el("label", { class: "field field-inline" }, [ui.el("span", { text: "하나당" }), eachSelect]),
+        ]),
+        ui.el("p", { class: "sheet-sub", text: "이렇게 들어갑니다" }),
+        preview,
+      ],
+      actions: [
+        ui.el("button", { class: "btn btn-ghost", text: "취소", onclick: ui.closeSheet }),
+        ui.el("button", { class: "btn btn-primary", text: "넣기", onclick: apply }),
+      ],
+    });
+  }
+
+  const hhmm = (m) => dt.minutesToLabel(m);
+  function parseHHMM(v) {
+    const [h, m] = String(v).split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    let out = h * 60 + m;
+    // 자정을 넘긴 시각은 다음날로 읽는다. 하루가 05:00 에 시작하기 때문이다.
+    if (out < dt.DAY_BOUNDARY_HOUR * 60) out += 1440;
+    return dt.clampToDay(out);
+  }
+
   function dayMenu(dateKey, onDone) {
     const state = SP.app.state();
 
@@ -228,10 +337,13 @@
           ui.el("button", { class: "menu-item", text: "이 날 복사", onclick: copyDay }),
           ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
           ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "자동으로 짜기", onclick: () => { ui.closeSheet(); autoPlan(dateKey, onDone); } }),
           ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
           // 사전이 모으는 할 일은 날짜와 무관하지만, 거기서 고른 것을 넣을 곳은
           // 이 날짜다. 그래서 날짜를 함께 넘긴다.
           ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "그림으로 내보내기", onclick: () => { ui.closeSheet(); SP.export.saveImage(dateKey); } }),
+          ui.el("button", { class: "menu-item", text: "인쇄", onclick: () => { ui.closeSheet(); SP.export.print(dateKey); } }),
           ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
           ui.el("button", { class: "menu-item menu-danger", text: "하루 초기화", onclick: resetDay }),
         ]),
@@ -341,7 +453,8 @@
     });
   }
 
-  const api = { dayMenu, eventEditor, pasteSheet, settings };
+  const api = {
+    autoPlan, dayMenu, eventEditor, pasteSheet, settings };
   SP.sheets = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
