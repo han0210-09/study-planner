@@ -16,6 +16,9 @@
   // 하루를 새로 열거나 탭을 바꿀 때만 지금 시각으로 옮긴다. 체크 하나 눌렀다고
   // 05:00 으로 튕겨 올라가면 밤 계획을 볼 수가 없다.
   let wantNow = false;
+  // 아래 서랍이 열려 있는지. 다시 그려도 열어둔 채로 남아야 한다 - 체크 한 번에
+  // 서랍이 닫히면 메모를 쓰다 말고 매번 다시 열어야 한다.
+  let sheetOpen = false;
 
   function ddayChip(dateKey) {
     const state = SP.app.state();
@@ -197,6 +200,29 @@
     };
   }
 
+  // 접혀 있을 때 보이는 한 줄. 달성률은 선 하나로, 오늘 일정은 작게.
+  // 여기 있는 것만으로도 "오늘 얼마나 했고 뭐가 있는지" 는 알 수 있어야 한다.
+  function peek(dateKey) {
+    const day = SP.app.store().getDay(dateKey);
+    const ratio = storeApi.doneRatio(day.blocks);
+    const list = eventsApi.onDate(SP.app.state().events, dateKey);
+    return ui.el("div", { class: "peek" }, [
+      ui.el("div", { class: "peek-bar" }, [
+        ui.el("div", { class: "peek-fill", style: { width: ratio + "%" } }),
+      ]),
+      ui.el("div", { class: "peek-row" }, [
+        ui.el("span", { class: "peek-rate", text: ratio + "%" }),
+        list.length
+          ? ui.el("div", { class: "peek-events" }, list.slice(0, 3).map((e) =>
+              ui.el("span", { class: "peek-event" }, [
+                ui.el("span", { class: "peek-dot", style: { background: e.color } }),
+                ui.el("span", { class: "peek-title", text: e.title }),
+              ])))
+          : ui.el("span", { class: "peek-none", text: "오늘 일정 없음" }),
+      ]),
+    ]);
+  }
+
   function render(host, dateKey) {
     // 이 하루를 새로 여는 것인지, 이미 보고 있던 것을 다시 그리는 것인지.
     // 지우기 전에 봐야 알 수 있다.
@@ -209,6 +235,7 @@
 
     const summaryHost = ui.el("div", {});
     const eventsHost = ui.el("div", {});
+    const peekHost = ui.el("div", { class: "peek-host" });
     // 남는 높이를 다 가져가는 칸이다. 클래스를 줘야 한다 - 이름 없는 div 로 두면
     // 여기서 flex 사슬이 끊겨, 안쪽 .pager 가 내용만큼 늘어나 버린다.
     const pagerHost = ui.el("div", { class: "pager-host" });
@@ -218,6 +245,7 @@
     const refresh = () => {
       ui.clear(summaryHost).appendChild(summaryCard(dateKey));
       ui.clear(eventsHost).appendChild(eventsCard(dateKey, refresh));
+      ui.clear(peekHost).appendChild(peek(dateKey));
       // 굴린 자리를 넘겨 받아, 다시 그린 뒤 그대로 되돌려 놓는다.
       const pane = pagerHost.querySelector(".pager");
       const at = pane ? pane.scrollTop : keepAt;
@@ -226,15 +254,37 @@
       made.settle(at);
     };
 
-    // 시간표와 To-Do 가 맨 위로 온다. 하루 중 가장 자주 보고 가장 자주 누르는
-    // 것이 이 둘인데, 달성률·일정·메모 뒤에 있으면 열 때마다 지나쳐 가야 했다.
-    // 나머지 셋은 아래로 내리고, 길어지면 그 안에서만 굴러가게 둔다.
+    // 시간표와 To-Do 가 화면을 다 쓴다. 달성률·일정·메모는 아래 서랍에 넣고,
+    // 접혀 있을 때는 달성률 선과 오늘 일정만 한 줄로 내민다. 늘 펼쳐 두었더니
+    // 화면의 40% 를 먹어, 정작 자주 보는 시간표가 좁았다.
+    const grip = ui.el("button", {
+      class: "day-grip", type: "button",
+      "aria-expanded": sheetOpen ? "true" : "false",
+      "aria-label": sheetOpen ? "달성률·일정·메모 접기" : "달성률·일정·메모 펼치기",
+      onclick: () => setSheet(!sheetOpen),
+    }, [ui.el("span", { class: "day-grip-bar" })]);
+
+    const sheet = ui.el("div", { class: "day-sheet" }, [
+      grip,
+      peekHost,
+      ui.el("div", { class: "day-sheet-body" }, [summaryHost, eventsHost, memoCard(dateKey)]),
+    ]);
+
+    function setSheet(open) {
+      sheetOpen = open;
+      sheet.classList.toggle("day-sheet-open", open);
+      grip.setAttribute("aria-expanded", open ? "true" : "false");
+      grip.setAttribute("aria-label", open ? "달성률·일정·메모 접기" : "달성률·일정·메모 펼치기");
+    }
+
+    // 손잡이와 접힌 줄 어디를 잡아당겨도 열린다. 작은 손잡이만 노려서 눌러야
+    // 하면 한 번에 안 걸린다.
+    ui.attachPull(grip, (dir) => setSheet(dir < 0));
+    ui.attachPull(peekHost, (dir) => setSheet(dir < 0));
+    setSheet(sheetOpen);
+
     ui.clear(host).appendChild(
-      ui.el("div", { class: "day" }, [
-        header(dateKey),
-        pagerHost,
-        ui.el("div", { class: "day-foot" }, [summaryHost, eventsHost, memoCard(dateKey)]),
-      ])
+      ui.el("div", { class: "day" }, [header(dateKey), pagerHost, sheet])
     );
 
     const memo = host.querySelector(".memo");

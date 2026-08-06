@@ -116,6 +116,47 @@
     node.addEventListener("pointercancel", (e) => { if (e.pointerType === "mouse") stop(); });
   }
 
+  // 위아래로 잡아당기는 손짓. attachSwipe 와 같은 이유로 터치 이벤트를 직접
+  // 듣는다 - 포인터 이벤트만 쓰면 브라우저가 세로 스크롤로 가져가면서
+  // pointercancel 을 보내 손짓이 끊긴다.
+  //
+  // onPull(dir) 의 dir 은 -1 이 위로(열기), 1 이 아래로(닫기)다.
+  function attachPull(node, onPull, options) {
+    const min = (options && options.min) || 28;
+    const claim = (options && options.claim) || 8;
+    let y0 = 0, x0 = 0, tracking = false, claimed = false, done = false;
+
+    function start(x, y) { x0 = x; y0 = y; tracking = true; claimed = false; done = false; }
+    function stop() { tracking = false; claimed = false; }
+
+    function step(x, y) {
+      if (!tracking || done) return claimed;
+      const dx = x - x0, dy = y - y0;
+      if (!claimed && Math.abs(dy) > claim && Math.abs(dy) > Math.abs(dx)) claimed = true;
+      if (Math.abs(dy) < min) return claimed;
+      done = true; tracking = false;
+      if (Math.abs(dy) > Math.abs(dx)) onPull(dy < 0 ? -1 : 1);
+      return claimed;
+    }
+
+    node.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) start(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    node.addEventListener("touchmove", (e) => {
+      if (!tracking || e.touches.length !== 1) return;
+      // 방향이 잡히면 우리 손짓으로 가져온다. 안 그러면 뒤쪽 화면이 함께 굴러간다.
+      if (step(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault();
+    }, { passive: false });
+    node.addEventListener("touchend", stop);
+    node.addEventListener("touchcancel", stop);
+
+    // 마우스는 포인터 이벤트로 충분하다.
+    node.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") start(e.clientX, e.clientY); });
+    node.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") step(e.clientX, e.clientY); });
+    node.addEventListener("pointerup", stop);
+    node.addEventListener("pointercancel", stop);
+  }
+
   function toast(message) {
     const host = document.getElementById("toast-root");
     const node = el("div", { class: "toast", text: message });
@@ -143,7 +184,7 @@
     banner.hidden = false;
   }
 
-  const api = { el, clear, openSheet, closeSheet, toast, confirmDialog, showBanner, attachSwipe };
+  const api = { el, clear, openSheet, closeSheet, toast, confirmDialog, showBanner, attachSwipe, attachPull };
   root.SP = root.SP || {};
   root.SP.ui = api;
   if (typeof module !== "undefined") module.exports = api;

@@ -126,6 +126,11 @@
     return cell;
   }
 
+  // 달을 넘길 때 어느 쪽에서 들어오는지. showCalendar 를 거쳐 다시 그려지므로
+  // 방향을 여기 남겨 두었다가 새로 그린 격자에 붙인다. 0 이면 애니메이션 없이
+  // 그린다 - 앱을 처음 열거나 하루에서 돌아올 때까지 밀려 들어오면 눈이 아프다.
+  let enterFrom = 0;
+
   function render(host, year, month) {
     const state = SP.app.state();
     const ctx = {
@@ -143,6 +148,7 @@
     while (cells.length % 7 !== 0) cells.push(dayCell(null, false, ctx));
 
     const go = (delta) => {
+      enterFrom = delta;
       const d = new Date(year, month - 1 + delta, 1);
       SP.app.showCalendar(d.getFullYear(), d.getMonth() + 1);
     };
@@ -153,14 +159,20 @@
 
     const summary = monthSummary(state, year, month);
     // 옆으로 밀어 달을 넘긴다.
-    const gridNode = ui.el("div", { class: "cal-grid" }, cells);
+    const gridNode = ui.el("div", {
+      class: "cal-grid" + (enterFrom > 0 ? " cal-in-left" : enterFrom < 0 ? " cal-in-right" : ""),
+    }, cells);
     ui.attachSwipe(gridNode, go, { min: SWIPE_MIN, claim: CLAIM_PX });
+    // 한 번 쓰고 지운다. 다음에 다른 길로 들어오면 방향이 없어야 한다.
+    enterFrom = 0;
 
     ui.clear(host).appendChild(
       ui.el("div", { class: "cal" }, [
         ui.el("header", { class: "cal-head" }, [
           ui.el("button", { class: "icon-btn", text: "‹", "aria-label": "이전 달", onclick: () => go(-1) }),
-          ui.el("h1", { class: "cal-title", text: year + "년 " + month + "월" }),
+          ui.el("h1", { class: "cal-title" + (gridNode.className.includes("cal-in-left") ? " cal-in-left"
+            : gridNode.className.includes("cal-in-right") ? " cal-in-right" : ""),
+            text: year + "년 " + month + "월" }),
           ui.el("button", { class: "icon-btn", text: "›", "aria-label": "다음 달", onclick: () => go(1) }),
           ui.el("button", { class: "btn btn-ghost cal-today-btn", text: "오늘", onclick: goToday }),
           // 사전은 날짜와 상관없이 쌓인 할 일을 정리하는 곳이라, 하루 안으로
