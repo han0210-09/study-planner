@@ -1,0 +1,43 @@
+# dist/pwa 를 GitHub Pages 로 올린다.
+#
+# 예전에는 gh-pages 브랜치에 git subtree push 로 밀어 넣고, GitHub 의 옛
+# 빌더(legacy)가 그것을 받아 올렸다. 2026-08-06 부터 그 빌더가 아무 설명 없이
+# "Page build failed" 만 내며 실패하기 시작했다 - 파일 구성도 내용도 그대로였고
+# .nojekyll 도 이미 있었다. 옛 빌더는 GitHub 이 걷어내는 중인 길이다.
+#
+# 이제 main 에 밀어 넣으면 여기서 올린다. subtree 도 gh-pages 브랜치도 필요 없다.
+name: Pages 배포
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dist/pwa/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 배포가 겹치면 나중 것만 남긴다. 다만 진행 중인 것을 끊지는 않는다 -
+# 반쯤 올라간 채로 멈추면 앱이 섞인 상태가 된다.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/pwa
+      - id: deployment
+        uses: actions/deploy-pages@v4
