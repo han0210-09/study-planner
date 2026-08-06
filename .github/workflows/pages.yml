@@ -41,3 +41,8 @@ jobs:
           path: dist/pwa
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # 기본 10분으로는 모자란다. 2026-08-06 에 이 사이트의 배포가 큐에서
+          # 오래 머물기 시작했고, deployment_in_progress 까지 가 놓고도 10분을
+          # 넘겨 action 이 먼저 포기했다. 30분까지 기다린다.
+          timeout: 1800000
