@@ -4,8 +4,23 @@ const dict = require("../src/dict.js");
 
 const T = (text, subjectId) => ({ id: "t" + text + subjectId, subjectId: subjectId || null, text, done: false });
 
+// 사전은 시간표에 블록이 남아 있는 할 일만 센다. 그래서 시험 데이터도 할 일마다
+// 블록을 하나씩 붙여준다. 블록이 없는 경우는 아래에서 따로 본다.
 function state(days, dictionary) {
   const out = { days: {}, dictionary: dictionary || { groups: [], assign: {} } };
+  for (const [key, todos] of Object.entries(days)) {
+    const blocks = todos.map((t, i) => ({
+      id: "b" + key + i, todoId: t.id, subjectId: t.subjectId, text: t.text,
+      start: 600 + i * 60, end: 660 + i * 60, done: false,
+    }));
+    out.days[key] = { todos, blocks, memo: "", achievement: 0, updatedAt: 0 };
+  }
+  return out;
+}
+
+// 시간이 안 잡힌 할 일만 있는 날.
+function stateNoBlocks(days) {
+  const out = { days: {}, dictionary: { groups: [], assign: {} } };
   for (const [key, todos] of Object.entries(days)) {
     out.days[key] = { todos, blocks: [], memo: "", achievement: 0, updatedAt: 0 };
   }
@@ -19,11 +34,41 @@ test("entries: 모든 날짜에서 이름별로 모은다", () => {
     "2026-08-03": [T("독서 지문", "kor"), T("토익 단어", "eng")],
   });
   const e = dict.entries(s);
-  // 많이 쓴 것이 먼저. 1회끼리는 최근에 쓴 토익 단어(08-03)가 문제집(08-01)보다 위다.
-  assert.deepEqual(e.map((x) => x.text), ["독서 지문", "토익 단어", "문제집"]);
-  assert.equal(e[0].count, 3, "많이 쓴 것이 위로");
+  // 이름 차례다. 사전에서 찾는 길은 이름이어야 한다.
+  assert.deepEqual(e.map((x) => x.text), ["독서 지문", "문제집", "토익 단어"]);
+  assert.equal(e[0].count, 3, "세 날에 걸쳐 썼다");
   assert.equal(e[0].subjectId, "kor");
   assert.equal(e[0].lastUsed, "2026-08-03");
+});
+
+test("entries: ㄱㄴㄷ → abc → 123 차례로 모은다", () => {
+  const s = state({
+    "2026-08-01": [T("zebra", "eng"), T("3교시 복습", "kor"), T("나비", "kor"),
+                   T("apple", "eng"), T("가나다", "kor"), T("10분 암기", "math")],
+  });
+  assert.deepEqual(dict.entries(s).map((x) => x.text),
+    ["가나다", "나비", "apple", "zebra", "10분 암기", "3교시 복습"]);
+});
+
+test("entries: 한글은 자음·모음 순서를 따른다", () => {
+  const s = state({ "2026-08-01": [T("하나", "kor"), T("가방", "kor"), T("사과", "kor")] });
+  assert.deepEqual(dict.entries(s).map((x) => x.text), ["가방", "사과", "하나"]);
+});
+
+// 블록을 지웠는데도 횟수가 그대로면 사전의 숫자가 실제 계획과 어긋난 채 커진다.
+test("entries: 시간표에 블록이 없는 할 일은 세지 않는다", () => {
+  const s = state({ "2026-08-01": [T("독서", "kor")], "2026-08-02": [T("독서", "kor")] });
+  assert.equal(dict.entries(s)[0].count, 2);
+  // 둘째 날의 블록만 걷어낸다.
+  s.days["2026-08-02"].blocks = [];
+  const after = dict.entries(s);
+  assert.equal(after[0].count, 1, "블록이 남은 날만 센다");
+  assert.equal(after[0].lastUsed, "2026-08-01");
+});
+
+test("entries: 어느 날에도 블록이 없으면 사전에 나오지 않는다", () => {
+  const s = stateNoBlocks({ "2026-08-01": [T("적어만 둔 것", "kor")] });
+  assert.deepEqual(dict.entries(s), []);
 });
 
 // 같은 이름은 하나로 친다. 과목이 달라도 마찬가지다.
@@ -148,7 +193,9 @@ test("renameGroup: 이름을 바꾸면 배정은 유지된다", () => {
 });
 
 test("dictionary 가 없는 state 도 그대로 다룬다", () => {
-  const s = { days: { "2026-08-01": { todos: [T("복습", "kor")], blocks: [] } } };
+  const todo = T("복습", "kor");
+  const s = { days: { "2026-08-01": { todos: [todo],
+    blocks: [{ id: "b1", todoId: todo.id, subjectId: "kor", text: "복습", start: 600, end: 660, done: false }] } } };
   assert.equal(dict.entries(s)[0].text, "복습");
   assert.ok(s.dictionary, "없으면 만들어 준다");
 });

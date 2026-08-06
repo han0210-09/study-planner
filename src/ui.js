@@ -71,6 +71,51 @@
     return panel;
   }
 
+  // 옆으로 밀기. 세로가 더 크면 굴리려는 것이므로 넘기지 않는다.
+  //
+  // 폰에서는 포인터 이벤트만으로 안 된다. 손가락이 20px 남짓 움직이는 순간
+  // 브라우저가 제 스크롤로 가져가면서 pointercancel 을 보내, 방향을 정하기도
+  // 전에 제스처가 끊긴다. 터치 이벤트는 그때도 계속 오고 preventDefault 로
+  // 붙잡을 수 있다. 마우스에는 터치 이벤트가 없으므로 포인터 쪽도 함께 둔다.
+  //
+  // min 까지 기다렸다 붙잡으면 늦는다. claim 을 넘는 순간 미리 가져온다.
+  function attachSwipe(node, onSwipe, options) {
+    const min = (options && options.min) || 50;
+    const claim = (options && options.claim) || 12;
+    let x0 = 0, y0 = 0, tracking = false, claimed = false, done = false;
+
+    function start(x, y) { x0 = x; y0 = y; tracking = true; claimed = false; done = false; }
+    function stop() { tracking = false; claimed = false; }
+
+    // 돌려주는 값은 "이 제스처를 우리가 가져갔는가".
+    function step(x, y) {
+      if (!tracking || done) return claimed;
+      const dx = x - x0;
+      const dy = y - y0;
+      if (!claimed && Math.abs(dx) > claim && Math.abs(dx) > Math.abs(dy)) claimed = true;
+      if (Math.abs(dx) < min && Math.abs(dy) < min) return claimed;
+      done = true;
+      tracking = false;
+      if (Math.abs(dx) > Math.abs(dy)) onSwipe(dx < 0 ? 1 : -1);
+      return claimed;
+    }
+
+    node.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) start(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    node.addEventListener("touchmove", (e) => {
+      if (!tracking || e.touches.length !== 1) return;
+      if (step(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault();
+    }, { passive: false });
+    node.addEventListener("touchend", stop);
+    node.addEventListener("touchcancel", stop);
+
+    node.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") start(e.clientX, e.clientY); });
+    node.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") step(e.clientX, e.clientY); });
+    node.addEventListener("pointerup", (e) => { if (e.pointerType === "mouse") stop(); });
+    node.addEventListener("pointercancel", (e) => { if (e.pointerType === "mouse") stop(); });
+  }
+
   function toast(message) {
     const host = document.getElementById("toast-root");
     const node = el("div", { class: "toast", text: message });
@@ -98,7 +143,7 @@
     banner.hidden = false;
   }
 
-  const api = { el, clear, openSheet, closeSheet, toast, confirmDialog, showBanner };
+  const api = { el, clear, openSheet, closeSheet, toast, confirmDialog, showBanner, attachSwipe };
   root.SP = root.SP || {};
   root.SP.ui = api;
   if (typeof module !== "undefined") module.exports = api;

@@ -7,7 +7,7 @@
   --accent: #4C6EF5;
   --danger: #E03131;
   --radius: 12px;
-  --tt-row: 44px;
+  --tt-hour: 64px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -20,6 +20,9 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", sans-serif;
   font-size: 15px;
   line-height: 1.5;
+  /* 화면 왼쪽 끝에서 오른쪽으로 미는 것을 브라우저가 "뒤로 가기"로 가져간다.
+     그러면 달력에서 이전 달로 넘기려던 손짓이 앱을 떠나 버린다. */
+  overscroll-behavior-x: contain;
 }
 body.sheet-open { overflow: hidden; }
 
@@ -117,7 +120,9 @@ button { font: inherit; color: inherit; }
 .dday { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
 .dday-none { background: #E9ECEF; color: var(--muted); font-weight: 500; }
 
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+/* 하루 화면에서는 위쪽 칸들이 늘 붙어 있다. 여백 한 겹이 그대로 시간표가 볼
+   자리를 깎으므로 넉넉하지 않게 잡는다. */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; }
 .card-title { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .empty { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 .add-btn { width: 100%; }
@@ -125,12 +130,22 @@ button { font: inherit; color: inherit; }
 .achieve-head { display: flex; justify-content: space-between; align-items: baseline; }
 .achieve-value { font-size: 18px; font-weight: 700; }
 
-.event-list { list-style: none; margin: 0; padding: 0; }
-.event-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.events-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.events-head .card-title { margin: 0; }
+.event-add { min-height: 36px; padding: 0 12px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
+.events-empty { margin: 8px 0 0; }
+/* 일정이 많은 날에도 위쪽 붙박이가 화면을 다 먹지 않게 막는다. 넘치면 이 안에서 굴린다. */
+.event-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 124px; overflow-y: auto; }
+.event-item { display: grid; grid-template-columns: 1fr 44px; align-items: center; border-bottom: 1px solid var(--line); }
 .event-item:last-child { border-bottom: 0; }
+.event-main {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0;
+  border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer;
+}
 .event-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
-.event-title { flex: 1; font-weight: 600; }
-.event-type { font-size: 11px; color: var(--muted); }
+.event-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-type { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
+.event-del { color: var(--danger); font-size: 14px; }
 
 .todo-list { list-style: none; margin: 0 0 10px; padding: 0; }
 /* 길게 누르면 삭제다. user-select를 끄지 않으면 그동안 iOS가 텍스트를 잡아
@@ -183,123 +198,133 @@ button { font: inherit; color: inherit; }
 
 .subject-select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: inherit; }
 
-.totals-row { display: flex; justify-content: space-between; padding: 3px 0; }
-.totals-label { color: var(--muted); font-size: 13px; }
+/* 목표와 실제가 한 줄에 나란히 선다. 두 줄이면 늘 붙어 있는 이 칸이 그만큼
+   두꺼워지고, 시간표가 볼 자리를 잃는다. */
+.totals { display: flex; gap: 16px; margin-top: 8px; }
+.totals-row { display: flex; align-items: baseline; gap: 6px; }
+.totals-label { color: var(--muted); font-size: 12px; }
 .totals-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
-.totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 8px; }
 .totals-fill { height: 100%; background: var(--accent); }
 
-.memo { width: 100%; min-height: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
+/* 메모는 이제 늘 화면에 붙어 있다. 비어 있을 때까지 88px 을 차지하면 정작
+   시간표가 볼 자리를 잃는다. 필요하면 오른쪽 아래를 끌어 늘릴 수 있다. */
+.memo { width: 100%; min-height: 58px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
-/* ---------- 타임테이블 (한 행 = 한 시간, 한 칸 = 5분) ---------- */
+/* ---------- 타임테이블 (시간이 위에서 아래로 곧게 흐른다) ---------- */
 .tt-wrap { display: flex; margin-top: 8px; user-select: none; }
-.tt-labels { flex: 0 0 34px; }
+.tt-labels { flex: 0 0 38px; }
 .tt-label-cell {
-  height: var(--tt-row); display: flex; align-items: flex-start; justify-content: flex-end;
-  padding: 2px 6px 0 0; font-size: 10px; color: var(--muted); line-height: 1;
+  height: var(--tt-hour); display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 0 6px 0 0; font-size: 10px; color: var(--muted); line-height: 1;
+  transform: translateY(-4px);
 }
+/* 블록은 이 상자 안에 퍼센트로 얹힌다. 높이는 안쪽 눈금줄이 정한다 - 시간 수를
+   CSS 에 박아두지 않기 위해서다. */
 .tt-cells {
-  flex: 1; min-width: 0; display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  grid-auto-rows: var(--tt-row);
-  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  flex: 1; min-width: 0; position: relative;
+  border-left: 1px solid var(--line);
   background: var(--surface);
   touch-action: pan-y;
 }
-/* 눈금은 테두리가 아니라 배경 그라디언트로 그린다. 격자 아이템에 border 를 주면
-   box-sizing 때문에 행 높이가 옆의 시각 라벨과 1px 어긋난다. */
-.tt-row {
-  grid-column: 1 / -1;
-  background-image:
-    linear-gradient(to bottom, var(--line) 0 1px, transparent 1px),
-    repeating-linear-gradient(to right, #E9ECEF 0 1px, transparent 1px 50%),
-    repeating-linear-gradient(to right, #F1F3F5 0 1px, transparent 1px calc(100% / 12));
+.tt-line {
+  height: var(--tt-hour); border-top: 1px solid var(--line);
+  /* 30분 자리의 옅은 눈금. */
+  background-image: linear-gradient(to bottom, transparent calc(50% - 1px), #F1F3F5 calc(50% - 1px) 50%, transparent 50%);
 }
+.tt-line:last-child { border-bottom: 1px solid var(--line); }
 
-/* 손잡이가 안쪽에 자리로 들어오면서 밖으로 삐져나오는 것이 없어졌다. 다시
-   숨겨서 둥근 모서리가 손잡이 배경을 잘라내게 한다. */
 .tt-seg {
-  display: flex; align-items: stretch; overflow: hidden;
-  margin: 2px 0; filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  position: absolute; left: 2px; right: 2px;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 6px;
+  filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.tt-seg-first { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
-.tt-seg-last { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 .tt-seg-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
-.tt-seg-dragging { opacity: .3; }
 /* 들린 블록. 원래 자리는 흐려지고 그림자가 손가락을 따라간다. */
 .tt-seg-lifted { opacity: .35; }
 .merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
 
-/* 조각이 한 칸(약 25px)일 수도 있으므로 44px 을 고정폭으로 못 준다. 줄어들게 두고,
-   짧은 블록의 완료 처리는 편집 시트의 완료 토글이 맡는다. */
+/* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 들어간다. */
+.tt-main { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; overflow: hidden; }
+/* 세로로 길어진 블록에서 ✓ 자리가 끝까지 늘어나면 색 띠가 하나 더 생긴 것처럼
+   보인다. 높이를 손가락 크기에서 끊는다. */
 .tt-check {
-  flex: 0 1 34px; min-width: 18px; border: 0; background: rgba(255,255,255,.5);
+  flex: 0 0 34px; max-height: 40px; border: 0; background: rgba(255,255,255,.5);
   font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
+  border-bottom-right-radius: 6px;
 }
 .tt-seg-done .tt-check { background: rgba(255,255,255,.75); }
 .tt-body {
   flex: 1 1 auto; min-width: 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
-  padding: 0 4px; overflow: hidden; text-align: left;
+  padding: 0 6px; overflow: hidden; text-align: left;
 }
 .tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
 
-/* 손잡이는 블록 안에서 제 자리를 차지한다. 겹쳐 띄우면 ✓ 와 같은 자리에 놓여
-   어느 쪽을 눌렀는지 알 수 없다. 순서는 손잡이 → ✓ → 이름이다.
-   flex-shrink 를 열어둔다 - 5분(약 25px)짜리에서는 양쪽이 절반씩 나눠 갖는다.
-   touch-action: none 이라 잡으면 곧바로 우리 제스처가 되고, 좁아서 화면
+/* 손잡이는 블록의 위아래 끝에 가로로 눕는다. 세로 시간표에서 경계는 가로줄이니
+   잡는 것도 가로줄이어야 한다.
+   flex-shrink 를 열어둔다 - 아주 짧은 블록에서는 위아래가 절반씩 나눠 갖는다.
+   touch-action: none 이라 잡으면 곧바로 우리 제스처가 되고, 얇아서 화면
    스크롤을 가로막지도 않는다.
 
    평소에는 바탕 없이 가는 눈금만 둔다. 시간표에서 읽어야 하는 것은 과목과
-   내용이지 손잡이가 아니다. 폭은 줄이되 높이는 조각 전체를 쓴다 - 세로로 길면
-   좁아도 손가락이 잡는다. */
+   내용이지 손잡이가 아니다. */
 .tt-handle {
-  flex: 0 1 12px; min-width: 7px; align-self: stretch;
+  flex: 0 1 11px; min-height: 4px;
   border: 0; background: transparent; padding: 0;
-  cursor: ew-resize; touch-action: none;
+  cursor: ns-resize; touch-action: none;
   display: flex; align-items: center; justify-content: center;
 }
 .tt-handle::before {
-  content: ""; width: 2px; height: 42%; border-radius: 1px; background: rgba(31,35,41,.26);
+  content: ""; height: 2px; width: 26px; border-radius: 1px; background: rgba(31,35,41,.26);
 }
-/* 끝 손잡이는 늘 조각의 오른쪽 끝이다. 줄이 바뀌어 이어지는 조각에서는 이것이
-   유일한 자식이라, 밀어주지 않으면 왼쪽에 붙어 엉뚱한 자리를 잡는다. */
-.tt-handle-end { margin-left: auto; }
 /* 맞닿은 두 블록이 함께 움직이는 경계. 잡으면 양쪽이 같이 바뀌므로 눈금을
    둘로 나눠 구분한다. */
-.tt-handle-shared { flex-basis: 15px; }
-.tt-handle-shared::before { box-shadow: 4px 0 0 rgba(31,35,41,.26), -4px 0 0 rgba(31,35,41,.26); }
+.tt-handle-shared { flex-basis: 13px; }
+.tt-handle-shared::before { box-shadow: 0 4px 0 rgba(31,35,41,.26), 0 -4px 0 rgba(31,35,41,.26); }
 /* 잡고 있는 동안에만 또렷해진다. */
 .tt-handle-on { background: rgba(255,255,255,.75); }
-.tt-handle-on::before { background: var(--accent); width: 3px; height: 58%; }
-.tt-handle-shared.tt-handle-on::before { box-shadow: 5px 0 0 var(--accent), -5px 0 0 var(--accent); }
+.tt-handle-on::before { background: var(--accent); height: 3px; }
+.tt-handle-shared.tt-handle-on::before { box-shadow: 0 5px 0 var(--accent), 0 -5px 0 var(--accent); }
 
 /* 미리보기. 손을 떼면 이렇게 된다는 그림이다. 원래 블록은 흐려지므로(.tt-seg-lifted)
-   이쪽이 결과로 읽힌다. 과목 색을 옅게 깔아 어느 블록인지 알아본다. */
-/* z-index 를 줘야 블록 위로 올라온다. 자리만 겹쳐 놓으면 미리보기의 배경은
-   블록 배경 위에 깔리지만, 블록의 글자는 그보다 늦게 그려져 미리보기를 뚫고
-   나온다(CSS 는 인라인 내용을 블록 배경보다 나중에 그린다). */
+   이쪽이 결과로 읽힌다. 과목 색을 깔아 어느 블록인지 알아본다.
+   z-index 를 줘야 블록 위로 올라온다 - 자리만 겹쳐 놓으면 블록의 글자가 미리보기를
+   뚫고 나온다(CSS 는 인라인 내용을 블록 배경보다 나중에 그린다). */
 .tt-ghost {
+  position: absolute; left: 2px; right: 2px; z-index: 4;
   background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
-  margin: 2px 0; pointer-events: none; overflow: hidden;
-  position: relative; z-index: 4;
+  border-radius: 6px; pointer-events: none; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
 .tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.9); padding: 0 4px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tt-ghost-sub { font-size: 9px; font-weight: 700; color: #1F2329; background: rgba(255,255,255,.9); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
 
 /* ---------- 탭과 좌우 넘김 ---------- */
-.pager-wrap { margin-top: 4px; }
+/* 위쪽(달성률·일정·메모·탭)은 붙박이고 시간표/To-Do 만 굴러간다. 그래서 하루
+   화면은 화면 높이를 통째로 잡고 그 안에서 나눈다. dvh 는 주소창이 접히고
+   펴져도 맞는다 - 옛 브라우저는 앞줄의 vh 로 떨어진다. */
+#screen-day { height: 100vh; height: 100dvh; padding-bottom: 0; overflow: hidden; }
+.day { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* 남는 높이는 이 사슬을 따라 .pager 까지 내려간다. 중간에 한 칸이라도 flex 가
+   아니면 거기서 끊겨, 안쪽이 내용만큼 늘어나 화면 전체가 길어진다. */
+.pager-host, .pager-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .tabs { display: flex; gap: 6px; padding: 0 2px 8px; }
 .tab {
   flex: 1; min-height: 40px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--surface); color: var(--muted); font: inherit; font-size: 14px; cursor: pointer;
 }
 .tab-on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
-/* 화면에는 보고 있는 쪽 하나만 들어간다. 높이는 그 내용만큼 자란다 - 재서
-   넣을 것이 없다. overflow 는 넘어올 때의 미끄러짐만 가린다. */
-.pager { overflow: hidden; touch-action: pan-y; }
+/* 화면에는 보고 있는 쪽 하나만 들어간다. 여기만 굴러간다.
+   overscroll-behavior 는 끝까지 굴렸을 때 그 힘이 바깥으로 새지 않게 한다 -
+   폰에서 화면 전체가 딸려 움직이거나 새로고침이 당겨지는 것을 막는다. */
+.pager {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  touch-action: pan-y; padding-bottom: calc(12px + var(--safe-b));
+}
 .pager-page { min-width: 0; }
 .page-in-left { animation: page-in-left .18s ease-out; }
 .page-in-right { animation: page-in-right .18s ease-out; }
@@ -307,8 +332,8 @@ button { font: inherit; color: inherit; }
 @keyframes page-in-right { from { transform: translateX(-26%); opacity: .35; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .page-in-left, .page-in-right { animation: none; } }
 
-.tt-now-row { grid-column: 1 / -1; position: relative; pointer-events: none; }
-.tt-now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--danger); }
+/* 지금 시각. 세로 시간표에서는 가로줄이다. */
+.tt-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); z-index: 5; pointer-events: none; }
 .tt-now::before { content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
 .editor-range { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; margin-bottom: 12px; }

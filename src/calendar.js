@@ -7,6 +7,12 @@
 
   const LONG_PRESS_MS = 450;
   const MOVE_TOLERANCE = 8;
+  // 달을 넘기는 데 필요한 가로 거리. 하루 칸 폭(약 50px)보다 넉넉히 커야
+  // 날짜를 누르려다 손이 미끄러진 것과 갈린다.
+  const SWIPE_MIN = 60;
+  // 이만큼만 가로로 가도 "옆으로 미는 중"으로 보고 브라우저에게서 제스처를
+  // 가져온다. SWIPE_MIN 까지 기다리면 그 전에 브라우저가 먼저 채간다.
+  const CLAIM_PX = 12;
 
   function monthDays(year, month) {
     return new Date(year, month, 0).getDate();
@@ -146,6 +152,9 @@
     };
 
     const summary = monthSummary(state, year, month);
+    // 옆으로 밀어 달을 넘긴다.
+    const gridNode = ui.el("div", { class: "cal-grid" }, cells);
+    ui.attachSwipe(gridNode, go, { min: SWIPE_MIN, claim: CLAIM_PX });
 
     ui.clear(host).appendChild(
       ui.el("div", { class: "cal" }, [
@@ -162,7 +171,7 @@
         ui.el("div", { class: "cal-weekdays" }, dt.WEEKDAY_NAMES.map((name, i) =>
           ui.el("div", { class: "cal-weekday" + (i === 0 ? " cal-sun" : i === 6 ? " cal-sat" : ""), text: name })
         )),
-        ui.el("div", { class: "cal-grid" }, cells),
+        gridNode,
         ui.el("div", { class: "cal-summary" }, [
           ui.el("span", { text: "이번 달 공부 " + dt.formatDuration(summary.total) }),
           ui.el("span", { text: "평균 달성률 " + summary.avg + "%" }),

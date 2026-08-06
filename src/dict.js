@@ -33,17 +33,39 @@
     return best ? best.id : null;
   }
 
+  // 이름을 ㄱㄴㄷ → abc → 123 → 그 밖 차례로 묶는다. 사전이니 찾는 길은
+  // 이름이어야 한다. 한글·영문·숫자가 뒤섞여 정렬되면 어디를 봐야 할지 모른다.
+  function orderClass(text) {
+    const first = text.charAt(0);
+    if (/[ㄱ-ㆎ가-힣]/.test(first)) return 0;
+    if (/[A-Za-z]/.test(first)) return 1;
+    if (/[0-9]/.test(first)) return 2;
+    return 3;
+  }
+
+  const collator = new Intl.Collator("ko");
+
+  function byName(a, b) {
+    return orderClass(a.text) - orderClass(b.text) || collator.compare(a.text, b.text);
+  }
+
   // 모든 날짜의 할 일을 이름으로 모은다.
   //
-  // 횟수는 블록이 아니라 할 일로 센다. 하루에 두 번 나눠 잡은 것은 "그날 한 번
+  // 시간표에 블록이 남아 있는 것만 센다. 블록을 지웠는데도 횟수가 그대로면,
+  // 사전의 숫자가 실제 계획과 어긋난 채 계속 커진다. 어느 날에도 블록이 없는
+  // 이름은 아예 나오지 않는다.
+  //
+  // 횟수는 블록이 아니라 날짜로 센다. 하루에 두 번 나눠 잡은 것은 "그날 한 번
   // 쓴 것"이지 두 번이 아니다.
   function entries(state) {
     const map = new Map();
     const days = (state && state.days) || {};
     for (const key of Object.keys(days).sort()) {
-      for (const todo of days[key].todos || []) {
+      const day = days[key];
+      const placed = new Set((day.blocks || []).map((b) => b.todoId).filter(Boolean));
+      for (const todo of day.todos || []) {
         const text = normalize(todo.text);
-        if (!text) continue;
+        if (!text || !placed.has(todo.id)) continue;
         let e = map.get(text);
         if (!e) {
           e = { text, count: 0, subjectId: null, lastUsed: "", counts: new Map(), lastSeen: new Map() };
@@ -69,12 +91,7 @@
         groupId: assign[e.text] || null,
       });
     }
-    // 많이 쓴 것이 위로. 같으면 최근에 쓴 것이 위로, 그래도 같으면 이름순으로
-    // 고정한다 - 순서가 흔들리면 목록을 볼 때마다 항목이 튄다.
-    out.sort((a, b) =>
-      b.count - a.count ||
-      (a.lastUsed < b.lastUsed ? 1 : a.lastUsed > b.lastUsed ? -1 : 0) ||
-      (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
+    out.sort(byName);
     return out;
   }
 
@@ -139,7 +156,7 @@
   }
 
   const api = {
-    normalize, emptyDictionary, entries, findEntry, grouped,
+    normalize, emptyDictionary, entries, findEntry, grouped, orderClass,
     addGroup, renameGroup, removeGroup, assignTo,
   };
 
