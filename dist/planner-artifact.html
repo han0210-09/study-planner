@@ -32,7 +32,7 @@
   --soft: #EDF3E9;
   --danger: #C0483C;
   --radius: 12px;
-  --tt-hour: 88px;
+  --tt-hour: 180px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -266,12 +266,11 @@ button { font: inherit; color: inherit; }
 
 /* overflow 를 열어둔다 - ✓ 가 얇은 블록 밖으로 삐져나와야 하기 때문이다.
    글자가 새는 것은 안쪽 .tt-main 이 막는다. */
-/* 아무리 짧은 블록에도 ✓ 와 글자가 들어가야 한다. 그래서 최소 높이를 준다 -
-   5분짜리는 제 시간(7px)보다 아래로 삐져나오지만, 안 보이는 것보다는 낫다.
-   짧은 블록일수록 z-index 를 올려(blockNode) 이웃에 가리지 않게 한다. */
+/* 블록은 늘 제 시간만큼만 차지한다. 최소 높이를 줬더니 5분짜리가 32px 로
+   그려져 바로 뒤 블록을 덮어 버렸다 - 이웃을 침범하느니 얇은 편이 낫다.
+   대신 한 시간 칸을 180px 로 넓혀, 5분이어도 16px 은 되게 했다. */
 .tt-seg {
   position: absolute; left: 2px; right: 2px;
-  min-height: 32px;
   display: flex; flex-direction: column; overflow: hidden;
   border-radius: 6px;
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
@@ -303,15 +302,27 @@ button { font: inherit; color: inherit; }
 .tt-label { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tt-time { font-size: 10px; opacity: .65; white-space: nowrap; }
 
-/* 짧은 블록. 두 줄로 쌓을 자리가 없으니 이름과 시각을 한 줄로 붙이고, 손잡이도
-   눈금만 남게 줄인다. 글자가 사라지느니 작아지는 편이 낫다. */
-.tt-seg-tight .tt-handle { flex-basis: 5px; }
-.tt-seg-tight .tt-handle::before { width: 18px; }
+/* 짧은 블록(35분 미만). 두 줄로 쌓을 자리가 없으니 이름과 시각을 한 줄로
+   붙인다. 손잡이는 얇아지되 모양은 그대로다. */
+.tt-seg-tight .tt-handle { flex-basis: 6px; }
 .tt-seg-tight .tt-main { gap: 3px; }
 .tt-seg-tight .tt-check { flex: 0 0 19px; width: 19px; height: 19px; font-size: 12px; border-radius: 6px; }
 .tt-seg-tight .tt-body { flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 5px; }
-.tt-seg-tight .tt-label { font-size: 10px; }
-.tt-seg-tight .tt-time { font-size: 9px; flex: 0 0 auto; }
+.tt-seg-tight .tt-label { font-size: 11px; }
+.tt-seg-tight .tt-time { font-size: 10px; flex: 0 0 auto; }
+
+/* 아주 짧은 블록(15분 미만). 시각까지 넣을 자리가 없으므로 이름만 남긴다 -
+   시각은 눈금이 이미 말해주고, 눌러서 열면 정확히 나온다. */
+/* 손잡이의 눈금(::before)은 건드리지 않는다 - 어디서나 같은 모양이어야 한다.
+   잡는 자리만 얇아진다. */
+.tt-seg-micro .tt-handle { flex-basis: 2px; min-height: 2px; }
+.tt-seg-micro .tt-main { gap: 3px; padding-left: 2px; }
+.tt-seg-micro .tt-check { flex: 0 0 13px; width: 13px; height: 13px; font-size: 9px; border-radius: 4px; border-width: 1px; }
+/* line-height 를 1 로 죈다. 본문에서 물려받은 1.5 로는 9.5px 글자가 14px 을
+   차지해, 5분짜리(15px) 안에 손잡이까지 넣으면 자리가 모자란다. */
+.tt-seg-micro .tt-label { font-size: 9.5px; line-height: 1; }
+.tt-seg-micro .tt-time { display: none; }
+.tt-seg-micro .tt-body { padding: 0 4px 0 2px; }
 
 /* 손잡이는 블록의 위아래 끝에 가로로 눕는다. 세로 시간표에서 경계는 가로줄이니
    잡는 것도 가로줄이어야 한다.
@@ -327,17 +338,15 @@ button { font: inherit; color: inherit; }
   cursor: ns-resize; touch-action: none;
   display: flex; align-items: center; justify-content: center;
 }
+/* 손잡이는 어디서나 같은 모양이다. 맞닿은 경계의 것만 눈금을 셋으로 나눠
+   뒀었는데, 같은 일을 하는 버튼이 두 모양이면 무엇이 다른지 먼저 궁금해진다.
+   맞닿은 곳에서 양쪽이 함께 움직인다는 것은 끌어 보면 바로 보인다. */
 .tt-handle::before {
   content: ""; height: 2px; width: 26px; border-radius: 1px; background: rgba(43,42,35,.28);
 }
-/* 맞닿은 두 블록이 함께 움직이는 경계. 잡으면 양쪽이 같이 바뀌므로 눈금을
-   둘로 나눠 구분한다. */
-.tt-handle-shared { flex-basis: 13px; }
-.tt-handle-shared::before { box-shadow: 0 4px 0 rgba(43,42,35,.28), 0 -4px 0 rgba(43,42,35,.28); }
 /* 잡고 있는 동안에만 또렷해진다. */
 .tt-handle-on { background: rgba(255,255,255,.75); }
 .tt-handle-on::before { background: var(--accent); height: 3px; }
-.tt-handle-shared.tt-handle-on::before { box-shadow: 0 5px 0 var(--accent), 0 -5px 0 var(--accent); }
 
 /* 미리보기. 손을 떼면 이렇게 된다는 그림이다. 원래 블록은 흐려지므로(.tt-seg-lifted)
    이쪽이 결과로 읽힌다. 과목 색을 깔아 어느 블록인지 알아본다.
@@ -4175,9 +4184,11 @@ body.focus-open { overflow: hidden; }
 
   // 손가락이 이만큼 움직이면 "가만히 누르고 있는 것"이 아니다.
   const MOVE_TOLERANCE = 8;
-  // 이보다 짧으면 이름과 시각을 한 줄로 붙인다. 한 시간이 --tt-hour 이므로
-  // 이 값이 곧 "두 줄이 들어갈 만큼 높은가" 의 경계다.
+  // 이름과 시각을 어떻게 앉힐지 가르는 경계. 한 시간이 --tt-hour 이므로 이
+  // 값이 곧 "몇 px 인가" 이다. 180px/시간 기준으로 35분≈105px, 15분≈45px.
   const TIGHT_MINUTES = 35;
+  // 이보다 짧으면 시각을 떼고 이름만 남긴다. 두 줄은커녕 한 줄도 빠듯하다.
+  const MICRO_MINUTES = 15;
   // 꾹 누르는 시간. 달력·To-Do 의 길게 누르기와 같은 값이라 앱 전체에서
   // "꾹 누르기"의 느낌이 하나로 맞는다.
   const LIFT_MS = 450;
@@ -4749,19 +4760,20 @@ body.focus-open { overflow: hidden; }
     if (!sharedEnd) parts.push(handle("end", false));
     else parts.push(handle("end", true));
 
-    // 짧은 블록은 이름과 시각을 한 줄로 붙이고 글자를 줄인다. 두 줄로 쌓으면
-    // 들어갈 자리가 없어 아래쪽이 잘려 나간다.
+    // 짧은 블록은 이름과 시각을 한 줄로 붙이고, 더 짧으면 시각까지 뗀다.
+    // 두 줄로 쌓으면 들어갈 자리가 없어 아래쪽이 잘려 나간다.
+    //
+    // 높이는 늘 제 시간 그대로다. 예전에는 짧은 블록에 최소 높이를 줬는데,
+    // 그러면 5분짜리가 32px 로 그려져 바로 뒤 블록을 덮어 버렸다. 침범하느니
+    // 얇은 편이 낫다 - 대신 한 시간 칸 자체를 넓혀 얇아도 읽히게 했다.
     const tight = minutes < TIGHT_MINUTES;
+    const micro = minutes < MICRO_MINUTES;
 
     const node = ui.el("div", {
-      class: "tt-seg" + (block.done ? " tt-seg-done" : "") + (tight ? " tt-seg-tight" : ""),
+      class: "tt-seg" + (block.done ? " tt-seg-done" : "") +
+        (tight ? " tt-seg-tight" : "") + (micro ? " tt-seg-micro" : ""),
       dataset: { id: block.id },
-      // 짧은 블록일수록 위로 올린다. 최소 높이 때문에 제 시간보다 아래로
-      // 삐져나오는데, 이웃에 가리면 정작 가장 작은 블록이 못 읽는 블록이 된다.
-      style: Object.assign(placeStyle(block.start, block.end), {
-        background: color,
-        zIndex: String(minutes < 20 ? 3 : minutes < 45 ? 2 : 1),
-      }),
+      style: Object.assign(placeStyle(block.start, block.end), { background: color }),
     }, parts);
 
     const startHandle = node.querySelector(".tt-handle-start");
