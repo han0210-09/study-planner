@@ -8,6 +8,9 @@
   let todayKey = null;
   let view = { year: 0, month: 0 };
   let saveTimer = null;
+  // 크롬은 설치할 수 있게 되면 이 사건을 한 번 보낸다. 그때 잡아 두지 않으면
+  // 나중에 설정에서 "설치" 를 누를 방법이 없다.
+  let installEvent = null;
 
   function safeStorage() {
     try {
@@ -91,6 +94,9 @@
 
     showCalendar(view.year, view.month);
 
+    // 알림은 켜 둔 사람에게만 돈다.
+    if (SP.notify) SP.notify.start();
+
     setInterval(refreshToday, 60000);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) flush();
@@ -100,6 +106,22 @@
     window.addEventListener("pagehide", flush);
   }
 
-  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, today, viewDate, store: () => store };
+  window.addEventListener("beforeinstallprompt", (e) => {
+    // 브라우저가 알아서 띄우는 배너를 막고, 설정 안의 버튼으로 옮긴다.
+    e.preventDefault();
+    installEvent = e;
+  });
+  window.addEventListener("appinstalled", () => { installEvent = null; });
+
+  async function install() {
+    if (!installEvent) return false;
+    installEvent.prompt();
+    const choice = await installEvent.userChoice;
+    installEvent = null;
+    return !!choice && choice.outcome === "accepted";
+  }
+
+  SP.app = { boot, state, persist, saveDay, showCalendar, showDay, today, viewDate, store: () => store,
+    installPrompt: () => installEvent, install };
   document.addEventListener("DOMContentLoaded", boot);
 })(typeof globalThis !== "undefined" ? globalThis : window);

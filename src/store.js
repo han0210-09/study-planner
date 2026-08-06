@@ -121,6 +121,16 @@
     if (subjects && kept.length !== subjects.length) mark();
     subjects = kept;
 
+    // 알림 설정. settings 는 여기서 통째로 다시 지어지므로, 걸러 담지 않으면
+    // 켜 둔 알림이 앱을 열 때마다 꺼진다. 참/거짓만 통과시킨다.
+    const rawNotify = raw.settings && raw.settings.notify;
+    const notify = {};
+    if (rawNotify && typeof rawNotify === "object") {
+      for (const [k, v] of Object.entries(rawNotify)) {
+        if (typeof v === "boolean") notify[k] = v;
+      }
+    }
+
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
     for (const [key, value] of Object.entries(rawDays)) {
@@ -200,7 +210,7 @@
     }
 
     return {
-      state: { version, settings: { subjects, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard, dictionary },
+      state: { version, settings: { subjects, notify, dayBoundaryHour: dt.DAY_BOUNDARY_HOUR }, days, events, clipboard, dictionary },
       recovered,
       readOnly,
     };

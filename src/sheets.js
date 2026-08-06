@@ -298,6 +298,95 @@
     return dt.clampToDay(out);
   }
 
+  /* ---------- 일정 예시와 주고받기 ---------- */
+
+  // 서버가 없으므로 "공유"는 코드를 주고받는 것이다. 내 하루를 글자 한 덩이로
+  // 바꿔 보내면, 받은 사람이 붙여넣어 자기 날짜에 얹는다.
+  function planLibrary(dateKey, onDone) {
+    const tpl = SP.templates;
+
+    function put(blocks, what) {
+      if (blocks.length === 0) { ui.toast("겹치지 않는 자리가 없습니다."); return; }
+      const day = SP.app.store().getDay(dateKey);
+      SP.app.saveDay(dateKey, { todos: day.todos, blocks: day.blocks.concat(blocks) });
+      ui.closeSheet();
+      if (onDone) onDone();
+      ui.toast(what + " " + blocks.length + "개를 넣었습니다.");
+    }
+
+    function useTemplate(t) {
+      put(tpl.toBlocks(t, SP.app.store().getDay(dateKey).blocks, storeApi.newId), t.name + " 에서");
+    }
+
+    // 겹쳐서 버려질 것이 몇 개인지 미리 알려준다. 넣고 나서 세 개가 사라진
+    // 것을 알아채면 어디가 잘못됐는지 되짚어야 한다.
+    function describe(t) {
+      const fits = tpl.toBlocks(t, SP.app.store().getDay(dateKey).blocks, storeApi.newId).length;
+      const range = dt.minutesToLabel(Math.min(...t.blocks.map((b) => b.start))) + "~" +
+        dt.minutesToLabel(Math.max(...t.blocks.map((b) => b.end)));
+      if (fits === t.blocks.length) return range + " · " + fits + "개";
+      return range + " · " + fits + "개 (겹치는 " + (t.blocks.length - fits) + "개는 빼고)";
+    }
+
+    const codeBox = ui.el("textarea", { class: "code-box", rows: "3", readonly: "readonly",
+      "aria-label": "내 하루 코드" });
+
+    function myCode() {
+      const day = SP.app.store().getDay(dateKey);
+      if (day.blocks.length === 0) return "";
+      return tpl.encode(dt.formatDateKorean(dateKey), day.blocks.map((b) => ({
+        start: b.start, end: b.end,
+        text: [subjectsApi.nameOf(SP.app.state().settings.subjects, b.subjectId), b.text]
+          .filter(Boolean).join(" · "),
+      })));
+    }
+
+    async function shareMine() {
+      const code = codeBox.value;
+      if (!code) { ui.toast("이 날에 넣을 것이 없습니다."); return; }
+      if (navigator.share) {
+        try { await navigator.share({ text: code }); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+      try { await navigator.clipboard.writeText(code); ui.toast("코드를 복사했습니다."); }
+      catch (e) { codeBox.select(); ui.toast("길게 눌러 복사하세요."); }
+    }
+
+    const inBox = ui.el("textarea", { class: "code-box", rows: "3",
+      placeholder: "받은 코드를 여기에 붙여넣으세요", "aria-label": "받은 코드" });
+
+    function takeIn() {
+      const got = SP.templates.decode(inBox.value);
+      if (!got) { ui.toast("코드를 읽을 수 없습니다."); return; }
+      put(tpl.toBlocks({ name: got.name, blocks: got.blocks.map((b) => ({ ...b, subject: null })) },
+        SP.app.store().getDay(dateKey).blocks, storeApi.newId), got.name + " 에서");
+    }
+
+    codeBox.value = myCode();
+
+    ui.openSheet({
+      title: "일정 가져오기",
+      body: [
+        ui.el("p", { class: "sheet-sub", text: "예시에서 가져오기" }),
+        ui.el("div", { class: "tpl-list" }, tpl.BUILT_IN.map((t) =>
+          ui.el("button", { class: "tpl-item", type: "button", onclick: () => useTemplate(t) }, [
+            ui.el("span", { class: "tpl-name", text: t.name }),
+            ui.el("span", { class: "tpl-note", text: t.note }),
+            ui.el("span", { class: "tpl-when", text: describe(t) }),
+          ]))),
+
+        ui.el("p", { class: "sheet-sub", text: "받은 코드로 가져오기" }),
+        inBox,
+        ui.el("button", { class: "btn add-btn", type: "button", text: "붙여넣은 코드 넣기", onclick: takeIn }),
+
+        ui.el("p", { class: "sheet-sub", text: "내 하루를 코드로 보내기" }),
+        codeBox,
+        ui.el("button", { class: "btn add-btn", type: "button", text: "코드 보내기 / 복사", onclick: shareMine }),
+        ui.el("p", { class: "empty", text: "서버를 쓰지 않습니다. 이 글자를 그대로 보내면 받은 사람이 붙여넣어 씁니다." }),
+      ],
+    });
+  }
+
   function dayMenu(dateKey, onDone) {
     const state = SP.app.state();
 
@@ -332,16 +421,23 @@
     ui.openSheet({
       title: dt.formatDateKorean(dateKey),
       body: [
+        // 자주 누르는 것이 위로 온다. 복사·붙여넣기가 맨 위에 있던 때에는
+        // 하루를 짜러 들어와서 그 셋을 지나쳐야 했다.
+        ui.el("div", { class: "menu" }, [
+          ui.el("button", { class: "menu-item", text: "자동으로 짜기", onclick: () => { ui.closeSheet(); autoPlan(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "일정 가져오기", onclick: () => { ui.closeSheet(); planLibrary(dateKey, onDone); } }),
+          ui.el("button", { class: "menu-item", text: "집중 화면", onclick: () => { ui.closeSheet(); SP.focus.open(dateKey); } }),
+          ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
+          // 사전이 모으는 할 일은 날짜와 무관하지만, 거기서 고른 것을 넣을 곳은
+          // 이 날짜다. 그래서 날짜를 함께 넘긴다.
+          ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(dateKey, onDone); } }),
+        ]),
+        // 무엇이 복사돼 있는지는 붙여넣기 바로 옆에 있어야 읽힌다.
         ui.el("p", { class: "paste-source", text: clip.describeClip(state.clipboard) }),
         ui.el("div", { class: "menu" }, [
           ui.el("button", { class: "menu-item", text: "이 날 복사", onclick: copyDay }),
           ui.el("button", { class: "menu-item", text: "이 주 복사", onclick: copyWeek }),
           ui.el("button", { class: "menu-item", text: "여기에 붙여넣기", onclick: () => { ui.closeSheet(); pasteSheet(dateKey, onDone); } }),
-          ui.el("button", { class: "menu-item", text: "자동으로 짜기", onclick: () => { ui.closeSheet(); autoPlan(dateKey, onDone); } }),
-          ui.el("button", { class: "menu-item", text: "일정 추가", onclick: () => { ui.closeSheet(); eventEditor(dateKey, null, onDone); } }),
-          // 사전이 모으는 할 일은 날짜와 무관하지만, 거기서 고른 것을 넣을 곳은
-          // 이 날짜다. 그래서 날짜를 함께 넘긴다.
-          ui.el("button", { class: "menu-item", text: "사전", onclick: () => { ui.closeSheet(); SP.dictsheet.open(dateKey, onDone); } }),
           ui.el("button", { class: "menu-item", text: "그림으로 내보내기", onclick: () => { ui.closeSheet(); SP.export.saveImage(dateKey); } }),
           ui.el("button", { class: "menu-item", text: "인쇄", onclick: () => { ui.closeSheet(); SP.export.print(dateKey); } }),
           ui.el("button", { class: "menu-item", text: "설정", onclick: () => { ui.closeSheet(); settings(onDone); } }),
@@ -350,6 +446,94 @@
       ],
     });
   }
+
+  /* ---------- 알림 ---------- */
+
+  // 켜고 끄는 곳. 항목마다 따로 끌 수 있다 - "시작할 때만" 이나 "시험 전날만"
+  // 처럼 쓰고 싶은 경우가 서로 다르다.
+  function notifySection(onDone) {
+    const notifyApi = SP.notify;
+    const host = ui.el("div", { class: "notify-box" });
+
+    function row(kind) {
+      const box = ui.el("input", { type: "checkbox", checked: notifyApi.enabled(kind.id),
+        disabled: !notifyApi.settings().on,
+        onchange: (e) => { notifyApi.setKind(kind.id, e.target.checked); } });
+      return ui.el("label", { class: "notify-row" }, [
+        box,
+        ui.el("span", { class: "notify-text" }, [
+          ui.el("span", { class: "notify-label", text: kind.label }),
+          ui.el("span", { class: "notify-note", text: kind.note }),
+        ]),
+      ]);
+    }
+
+    function paint() {
+      ui.clear(host);
+      if (!notifyApi.supported()) {
+        host.appendChild(ui.el("p", { class: "empty", text: "이 브라우저는 알림을 지원하지 않습니다." }));
+        return;
+      }
+      const on = !!notifyApi.settings().on;
+      host.appendChild(ui.el("label", { class: "notify-row notify-main" }, [
+        ui.el("input", { type: "checkbox", checked: on,
+          onchange: async (e) => {
+            const got = await notifyApi.setOn(e.target.checked);
+            paint();
+            if (got && onDone) onDone();
+          } }),
+        ui.el("span", { class: "notify-text" }, [
+          ui.el("span", { class: "notify-label", text: "알림 받기" }),
+          // 켜져 있으면 막혔다는 말을 하지 않는다. 둘 다 보이면 어느 쪽이
+          // 참인지 알 수 없다. 막혔다는 안내는 못 켠 사람에게만 쓸모가 있다.
+          ui.el("span", { class: "notify-note",
+            text: on
+              ? "이 기기에 알림을 보냅니다."
+              : notifyApi.permission() === "denied"
+                ? "브라우저에서 막혀 있습니다. 주소창 옆 자물쇠에서 켜 주세요."
+                : "이 기기에 알림을 보냅니다." }),
+        ]),
+      ]));
+      for (const kind of notifyApi.KINDS) host.appendChild(row(kind));
+      // 안 울리는 경우를 미리 밝혀 둔다. 고장으로 오해하는 편이 더 나쁘다.
+      host.appendChild(ui.el("p", { class: "empty",
+        text: "앱이 열려 있거나 뒤에 내려가 있는 동안 울립니다. 완전히 닫으면 울리지 않습니다 - 정해진 시각에 브라우저를 깨우려면 서버가 필요한데, 이 앱은 기기 안에서만 돌아갑니다." }));
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        host.appendChild(ui.el("p", { class: "empty",
+          text: "아이폰은 홈 화면에 설치해야 알림을 켤 수 있습니다." }));
+      }
+    }
+
+    paint();
+    return host;
+  }
+
+  /* ---------- 앱으로 설치 ---------- */
+
+  function installSection() {
+    const host = ui.el("div", {});
+    const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    if (standalone || navigator.standalone) {
+      host.appendChild(ui.el("p", { class: "empty", text: "이미 앱으로 설치되어 있습니다." }));
+      return host;
+    }
+    // 크롬은 설치할 수 있을 때 beforeinstallprompt 를 준다. app.js 가 잡아 둔다.
+    if (SP.app.installPrompt()) {
+      host.appendChild(ui.el("button", { class: "btn add-btn", text: "홈 화면에 설치",
+        onclick: async () => { await SP.app.install(); settings(onDoneOf(host)); } }));
+      return host;
+    }
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    host.appendChild(ui.el("p", { class: "empty",
+      text: ios
+        ? "사파리 아래 공유 버튼 → '홈 화면에 추가' 를 누르세요."
+        : "브라우저 메뉴에서 '홈 화면에 추가' 또는 '앱 설치' 를 누르세요." }));
+    return host;
+  }
+
+  // installSection 은 설정 시트 안에서만 쓰이므로 onDone 을 따로 들고 있지
+  // 않다. 다시 그릴 때는 아무것도 하지 않는 함수로 충분하다.
+  const onDoneOf = () => undefined;
 
   /* ---------- 설정 ---------- */
 
@@ -442,6 +626,12 @@
           if (onDone) onDone();
           settings(onDone);
         } }),
+        ui.el("h3", { class: "sheet-sub", text: "알림" }),
+        notifySection(onDone),
+
+        ui.el("h3", { class: "sheet-sub", text: "앱으로 설치" }),
+        installSection(),
+
         ui.el("h3", { class: "sheet-sub", text: "백업" }),
         ui.el("p", { class: "empty", text: "이 기기에만 저장됩니다. 기기를 바꾸기 전에 반드시 내보내세요." }),
         ui.el("div", { class: "backup-row" }, [
@@ -454,7 +644,7 @@
   }
 
   const api = {
-    autoPlan, dayMenu, eventEditor, pasteSheet, settings };
+    autoPlan, planLibrary, dayMenu, eventEditor, pasteSheet, settings };
   SP.sheets = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : window);
