@@ -4,16 +4,6 @@
   const STORAGE_KEY = "studyPlanner.v1";
   const SCHEMA_VERSION = 1;
 
-  const DEFAULT_SUBJECTS = [
-    { id: "kor", name: "국어", color: "#FFE08A" },
-    { id: "eng", name: "영어", color: "#A8E6CF" },
-    { id: "math", name: "수학", color: "#FFB3BA" },
-    { id: "soc", name: "사회", color: "#BAE1FF" },
-    { id: "sci", name: "과학", color: "#D5C6FF" },
-    { id: "hist", name: "한국사", color: "#FFD6A5" },
-    { id: "etc", name: "기타", color: "#D9D9D9" },
-  ];
-
   function newId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
@@ -86,27 +76,15 @@
     return { start: lo, end: hi };
   }
 
-  // 과목을 안 고른 블록은 공부로 세지 않는다. 밥 먹기·이동·쉬는 시간처럼
-  // 시간표에는 두고 싶지만 공부는 아닌 것이 여기 들어온다.
-  //
-  // 거르는 자리는 합계 함수 안이다. 목표시간·실제시간·달성률·달력이 모두 이
-  // 함수들을 거치므로, 화면마다 따로 거르면 어느 하나가 빠졌을 때 값이 어긋난다.
-  function isStudy(b) {
-    return !!(b && b.subjectId);
-  }
-
+  // 시간표에 올린 것은 모두 센다. 예전에는 과목을 고른 블록만 셌는데, 그러면
+  // 과목을 안 고른 블록은 체크를 해도 달성률이 0% 에 머물러 고장난 것처럼
+  // 보였다. 과목은 이름표일 뿐이고, 해냈는지와는 상관이 없다.
   function sumPlanned(blocks) {
-    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum + (b.end - b.start) : sum), 0);
+    return (blocks || []).reduce((sum, b) => sum + (b.end - b.start), 0);
   }
 
   function sumDone(blocks) {
-    return (blocks || []).reduce((sum, b) => (isStudy(b) && b.done ? sum + (b.end - b.start) : sum), 0);
-  }
-
-  // 시간표에는 있는데 합계에서 빠진 시간. 왜 목표시간이 시간표보다 적은지
-  // 화면에서 설명하려면 이 값이 필요하다.
-  function sumUncounted(blocks) {
-    return (blocks || []).reduce((sum, b) => (isStudy(b) ? sum : sum + (b.end - b.start)), 0);
+    return (blocks || []).reduce((sum, b) => (b.done ? sum + (b.end - b.start) : sum), 0);
   }
 
   // 달성률은 계획 대비 실제다. 하루 화면과 달력이 같은 값을 보여야 하므로
@@ -134,12 +112,14 @@
     const readOnly = version > SCHEMA_VERSION;
     if (typeof raw.version !== "number") mark();
 
-    // 걸러낸 뒤에 기본값을 채운다. 순서를 바꾸면 subjects: [null] 같은 입력이
-    // 빈 과목 목록으로 남아 앱에 과목이 하나도 없게 된다.
+    // 과목이 하나도 없는 것은 이제 정상이다 - 처음 켠 상태가 그렇다. 그러니
+    // 빈 목록을 고쳤다고 표시하지 않는다. 표시하면 열 때마다 "고쳤습니다" 띠가
+    // 뜬다. 목록 자체가 없거나 모양이 틀린 것만 고친 것으로 센다.
     let subjects = raw.settings && Array.isArray(raw.settings.subjects) ? raw.settings.subjects : null;
     if (!subjects) mark();
-    subjects = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
-    if (subjects.length === 0) { mark(); subjects = DEFAULT_SUBJECTS.map((s) => ({ ...s })); }
+    const kept = (subjects || []).filter((s) => s && typeof s.id === "string" && typeof s.name === "string");
+    if (subjects && kept.length !== subjects.length) mark();
+    subjects = kept;
 
     const days = {};
     const rawDays = raw.days && typeof raw.days === "object" && !Array.isArray(raw.days) ? raw.days : (mark(), {});
@@ -150,15 +130,16 @@
       day.achievement = typeof value.achievement === "number" ? Math.min(100, Math.max(0, value.achievement)) : 0;
       day.memo = typeof value.memo === "string" ? value.memo : "";
       day.updatedAt = typeof value.updatedAt === "number" ? value.updatedAt : 0;
-      // 과목이 없으면 완료도 없다. 이 규칙이 생기기 전에 켜둔 표시가 남아 있으면
-      // 화면에 체크가 없어 끌 방법이 사라진다. 손상이 아니라 정리이므로 mark() 하지 않는다.
+      // 완료는 과목과 상관없이 그대로 읽는다. 예전에는 여기서 과목 없는 것의
+      // 완료를 지웠는데, 그러면 과목 없이 체크해 둔 것이 앱을 다시 열 때마다
+      // 소리 없이 풀린다.
       day.todos = (Array.isArray(value.todos) ? value.todos : []).filter((t) => t && typeof t.text === "string")
-        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!(t.subjectId && t.done) }));
+        .map((t) => ({ id: t.id || newId(), subjectId: t.subjectId || null, text: t.text, done: !!t.done }));
       const accepted = [];
       for (const b of Array.isArray(value.blocks) ? value.blocks : []) {
         const block = { id: (b && b.id) || newId(), subjectId: (b && b.subjectId) || null,
           text: b && typeof b.text === "string" ? b.text : "", start: b && b.start, end: b && b.end,
-          done: !!(b && b.subjectId && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
+          done: !!(b && b.done), todoId: b && typeof b.todoId === "string" ? b.todoId : null };
         if (!validateBlock(block).ok) { mark(); continue; }
         if (findOverlap(accepted, block)) { mark(); continue; }
         accepted.push(block);
@@ -277,9 +258,9 @@
   }
 
   const api = {
-    STORAGE_KEY, SCHEMA_VERSION, DEFAULT_SUBJECTS,
+    STORAGE_KEY, SCHEMA_VERSION,
     newId, emptyDay, isDayEmpty, validateBlock, overlaps, findOverlap,
-    limitRange, isStudy, sumPlanned, sumDone, sumUncounted, doneRatio, sanitizeState, createStore,
+    limitRange, sumPlanned, sumDone, doneRatio, sanitizeState, createStore,
   };
 
   root.SP = root.SP || {};

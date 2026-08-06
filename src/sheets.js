@@ -266,7 +266,7 @@
           "'" + subject.name + "' 과목을 삭제합니다.\n" +
           (count > 0 ? count + "개 항목이 '과목 없음'이 됩니다." : "사용 중인 항목은 없습니다."));
         if (!ok) { settings(onDone); return; }
-        if (subjectsApi.removeSubject(state, subject.id) === -1) ui.toast("마지막 과목은 지울 수 없습니다.");
+        subjectsApi.removeSubject(state, subject.id);
         SP.app.persist();
         if (onDone) onDone();
         settings(onDone);
@@ -321,9 +321,11 @@
       title: "설정",
       body: [
         ui.el("h3", { class: "sheet-sub", text: "과목" }),
-        ui.el("div", { class: "subject-list" }, state.settings.subjects.map(subjectRow)),
+        state.settings.subjects.length
+          ? ui.el("div", { class: "subject-list" }, state.settings.subjects.map(subjectRow))
+          : ui.el("p", { class: "empty", text: "과목은 없어도 됩니다. 자주 쓰는 것만 만들어 두세요." }),
         ui.el("button", { class: "btn add-btn", text: "+ 과목 추가", onclick: () => {
-          subjectsApi.addSubject(state, "새 과목", "#DDDDDD");
+          subjectsApi.addSubject(state, "새 과목", subjectsApi.nextColor(state.settings.subjects));
           SP.app.persist();
           if (onDone) onDone();
           settings(onDone);

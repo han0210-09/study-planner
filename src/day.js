@@ -42,7 +42,6 @@
   function summaryCard(dateKey) {
     const day = SP.app.store().getDay(dateKey);
     const ratio = storeApi.doneRatio(day.blocks);
-    const uncounted = storeApi.sumUncounted(day.blocks);
     return ui.el("section", { class: "card" }, [
       ui.el("div", { class: "achieve-head" }, [
         ui.el("h2", { class: "card-title", text: "달성률" }),
@@ -63,13 +62,6 @@
           ui.el("strong", { text: dt.formatDuration(storeApi.sumDone(day.blocks)) }),
         ]),
       ]),
-      // 시간표에 있는 시간이 합계에서 빠졌을 때만, 왜 숫자가 다른지 밝힌다.
-      uncounted > 0
-        ? ui.el("p", {
-            class: "totals-note",
-            text: "과목 없음 " + dt.formatDuration(uncounted) + "은 공부 시간에 넣지 않습니다.",
-          })
-        : null,
     ]);
   }
 
@@ -225,13 +217,14 @@
       made.settle(at);
     };
 
+    // 시간표와 To-Do 가 맨 위로 온다. 하루 중 가장 자주 보고 가장 자주 누르는
+    // 것이 이 둘인데, 달성률·일정·메모 뒤에 있으면 열 때마다 지나쳐 가야 했다.
+    // 나머지 셋은 아래로 내리고, 길어지면 그 안에서만 굴러가게 둔다.
     ui.clear(host).appendChild(
       ui.el("div", { class: "day" }, [
         header(dateKey),
-        summaryHost,
-        eventsHost,
-        memoCard(dateKey),
         pagerHost,
+        ui.el("div", { class: "day-foot" }, [summaryHost, eventsHost, memoCard(dateKey)]),
       ])
     );
 

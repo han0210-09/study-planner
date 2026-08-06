@@ -13,7 +13,9 @@
     const day = SP.app.store().getDay(dateKey);
     const existing = todoId ? day.todos.find((t) => t.id === todoId) : null;
 
-    const select = subjectsApi.buildSelect(state.settings.subjects, existing ? existing.subjectId : null);
+    // 과목은 안 골라도 된다. 비워두면 이름표 없는 할 일이 되고, 그래도 체크는
+    // 할 수 있다. 여기서 바로 새 과목을 만들 수도 있다.
+    const subject = subjectsApi.subjectField(state, existing ? existing.subjectId : null);
     const input = ui.el("input", { type: "text", value: existing ? existing.text : "", placeholder: "할 일을 입력하세요", maxlength: "80" });
 
     // 배정된 시간을 목록으로 다룬다. 저장 전까지는 여기서만 사는 사본이다.
@@ -108,8 +110,8 @@
       const text = input.value.trim();
       if (!text) { ui.toast("할 일을 입력하세요."); return; }
       const todo = existing
-        ? { ...existing, subjectId: select.value || null, text }
-        : { id: storeApi.newId(), subjectId: select.value || null, text, done: false };
+        ? { ...existing, subjectId: subject.value || null, text }
+        : { id: storeApi.newId(), subjectId: subject.value || null, text, done: false };
       SP.app.saveDay(dateKey, SP.link.commitTodo(SP.app.store().getDay(dateKey), todo, slots));
       ui.closeSheet();
       onDone();
@@ -130,7 +132,7 @@
     ui.openSheet({
       title: existing ? "할 일 수정" : "할 일 추가",
       body: [
-        ui.el("label", { class: "field" }, [ui.el("span", { text: "과목" }), select]),
+        ui.el("div", { class: "field" }, [ui.el("span", { text: "과목 (선택)" }), subject.node]),
         ui.el("label", { class: "field" }, [ui.el("span", { text: "할 일" }), input]),
         ui.el("p", { class: "sheet-sub", text: "배정된 시간" }),
         listHost,
@@ -260,28 +262,36 @@
       ? ui.el("span", { class: "todo-nth", text: row.nth + "/" + row.of })
       : null;
 
+    // 과목을 안 고른 할 일이 흔해졌으므로, 없을 때는 이름표 자체를 뺀다.
+    // "-" 만 든 색 딱지가 줄마다 붙으면 읽을 것만 늘어난다.
+    //
+    // 이름표는 제목과 한 줄에 둔다. 예전처럼 자기 열을 차지하면, 이름표가 없는
+    // 줄에서 그 열이 비어 체크 열이 8px 씩 어긋난다.
+    const tag = row.todo.subjectId
+      ? ui.el("span", {
+          class: "todo-tag",
+          text: subjectsApi.nameOf(subjects, row.todo.subjectId),
+          style: { background: subjectsApi.colorOf(subjects, row.todo.subjectId) },
+        })
+      : null;
+
     const node = ui.el("li", { class: "todo-row" + (done ? " todo-done" : "") }, [
-      ui.el("span", {
-        class: "todo-tag",
-        text: subjectsApi.nameOf(subjects, row.todo.subjectId) || "-",
-        style: { background: subjectsApi.colorOf(subjects, row.todo.subjectId) },
-      }),
       ui.el("button", { class: "todo-text", type: "button",
         // 손가락으로 누르는 건 줄 전체의 제스처가 처리한다(짧게 편집, 길게 삭제).
         // 여기 click 은 키보드로 Enter 를 눌렀을 때만 남는다 — 그때는 detail 이 0 이다.
         onclick: (e) => { if (e.detail === 0) openRow(dateKey, row, onChange); } }, [
-        ui.el("span", { class: "todo-head" }, [title, nth]),
+        ui.el("span", { class: "todo-head" }, [tag, title, nth]),
         ui.el("span", { class: "todo-when" + (row.block ? "" : " todo-when-none"), text: when }),
       ]),
-      // 과목이 없으면 완료를 매기지 않는다. 빈 칸은 남겨 열이 어긋나지 않게 한다.
-      storeApi.isStudy(row.todo)
-        ? ui.el("label", { class: "todo-check-hit" }, [
-            ui.el("input", {
-              type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
-              onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
-            }),
-          ])
-        : ui.el("div", { class: "todo-check-hit", "aria-hidden": "true" }),
+      // 과목과 상관없이 체크할 수 있다. 예전에는 과목을 골라야만 체크가
+      // 나타났는데, 할 일만 적고 저장한 사람에게는 목록이 반쯤 죽은 것처럼
+      // 보였다. 과목은 이름표일 뿐이다.
+      ui.el("label", { class: "todo-check-hit" }, [
+        ui.el("input", {
+          type: "checkbox", class: "todo-check", "aria-label": "완료", checked: done,
+          onchange: (e) => toggle(dateKey, row, e.target.checked, onChange),
+        }),
+      ]),
     ]);
     attachRowGestures(node, dateKey, row, onChange);
     return node;

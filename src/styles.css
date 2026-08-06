@@ -1,17 +1,25 @@
+/* 베이지 바탕에 녹색. 회색은 쓰지 않는다 - 차가운 회색을 따뜻한 베이지 위에
+   얹으면 때가 탄 것처럼 보인다. 막대 바탕과 눌린 자리까지 모두 바탕색 쪽으로
+   기울여 둔다. */
 :root {
-  --bg: #FAFAFB;
-  --surface: #FFFFFF;
-  --line: #E4E6EB;
-  --text: #1F2329;
-  --muted: #767C87;
-  --accent: #4C6EF5;
-  --danger: #E03131;
+  --bg: #F4EEE0;
+  --surface: #FFFCF5;
+  --line: #E2D9C6;
+  --text: #2B2A23;
+  --muted: #7C7362;
+  --accent: #3E8E5A;
+  --accent-weak: rgba(62,142,90,.22);
+  --track: #E6DDC9;
+  --soft: #EDF3E9;
+  --danger: #C0483C;
   --radius: 12px;
   --tt-hour: 64px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* 체크박스·라디오·진행바는 브라우저가 자기 파란색으로 그린다. 테마 색으로 맞춘다. */
+:root { accent-color: var(--accent); }
 
 body {
   margin: 0;
@@ -30,8 +38,8 @@ body.sheet-open { overflow: hidden; }
 
 .banner {
   position: sticky; top: 0; z-index: 40;
-  background: #FFF3BF; color: #7A5B00;
-  padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #FFE08A;
+  background: #F6E7C0; color: #6E5518;
+  padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #E7D296;
 }
 
 button { font: inherit; color: inherit; }
@@ -47,7 +55,7 @@ button { font: inherit; color: inherit; }
   border-radius: var(--radius); cursor: pointer; font-size: 18px;
 }
 
-.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; }
+.scrim { position: fixed; inset: 0; background: rgba(43,42,35,.38); z-index: 50; }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 51;
   max-width: 560px; margin: 0 auto;
@@ -64,7 +72,7 @@ button { font: inherit; color: inherit; }
 .confirm-msg { margin: 0; white-space: pre-line; }
 
 #toast-root { position: fixed; left: 0; right: 0; bottom: calc(24px + var(--safe-b)); z-index: 60; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.toast { background: rgba(31,35,41,.92); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; transition: opacity .3s; }
+.toast { background: rgba(43,42,35,.93); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 13px; transition: opacity .3s; }
 .toast-out { opacity: 0; }
 
 .field { display: block; margin-bottom: 14px; }
@@ -84,8 +92,8 @@ button { font: inherit; color: inherit; }
 
 .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-weekday { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 0; }
-.cal-sun { color: #E03131; }
-.cal-sat { color: #1C7ED6; }
+.cal-sun { color: var(--danger); }
+.cal-sat { color: #35709F; }
 
 .cal-cell {
   min-height: 74px; padding: 4px; background: var(--surface);
@@ -103,7 +111,7 @@ button { font: inherit; color: inherit; }
 .cal-badge-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-more { font-size: 10px; color: var(--muted); }
 
-.cal-bar { margin-top: auto; height: 4px; background: #EDEFF3; border-radius: 2px; overflow: hidden; }
+.cal-bar { margin-top: auto; height: 4px; background: var(--track); border-radius: 2px; overflow: hidden; }
 .cal-bar-fill { height: 100%; background: var(--accent); }
 .cal-achieve { font-size: 10px; color: var(--muted); text-align: right; }
 
@@ -118,7 +126,7 @@ button { font: inherit; color: inherit; }
 .day-nav { display: flex; align-items: center; justify-content: center; gap: 2px; }
 .day-date { font-size: 15px; font-weight: 600; white-space: nowrap; }
 .dday { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
-.dday-none { background: #E9ECEF; color: var(--muted); font-weight: 500; }
+.dday-none { background: var(--track); color: var(--muted); font-weight: 500; }
 
 /* 하루 화면에서는 위쪽 칸들이 늘 붙어 있다. 여백 한 겹이 그대로 시간표가 볼
    자리를 깎으므로 넉넉하지 않게 잡는다. */
@@ -151,11 +159,11 @@ button { font: inherit; color: inherit; }
 /* 길게 누르면 삭제다. user-select를 끄지 않으면 그동안 iOS가 텍스트를 잡아
    복사 메뉴를 띄운다. touch-action은 pan-y로 둬야 목록을 그대로 스크롤할 수 있다. */
 .todo-row {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
   padding: 6px 0; border-bottom: 1px solid var(--line);
   touch-action: pan-y; user-select: none; -webkit-user-select: none;
 }
-.todo-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.todo-tag { flex: 0 0 auto; font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 /* 할 일 텍스트를 누르면 편집 시트가 열린다. 주 터치 타깃이므로 44px이어야 한다.
    행은 이미 체크박스(44px) 때문에 56px 이상이라 레이아웃은 바뀌지 않는다. */
 .todo-text {
@@ -172,7 +180,7 @@ button { font: inherit; color: inherit; }
 .todo-head { display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 .todo-nth {
   flex: 0 0 auto; font-size: 10px; font-weight: 700; color: var(--muted);
-  background: #EDEFF3; border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums;
+  background: var(--track); border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums;
 }
 /* 체크박스는 이 앱의 핵심 동작이다. 보이는 상자는 24px이지만 탭 영역은 44px로 넓힌다.
    input에는 가상요소가 안 먹으므로 label로 감싼다. */
@@ -184,7 +192,7 @@ button { font: inherit; color: inherit; }
 /* 할 일 시트의 배정된 시간 목록. 0개·1개·여러 개가 같은 모양이다. */
 .slot-list { margin-bottom: 4px; }
 .slot { display: grid; grid-template-columns: 1fr 44px; align-items: center; border-bottom: 1px solid var(--line); }
-.slot-on { background: #F1F3F9; }
+.slot-on { background: var(--soft); }
 .slot-head {
   display: flex; align-items: baseline; gap: 8px;
   min-height: 44px; padding: 0 8px; border: 0; background: transparent;
@@ -203,8 +211,7 @@ button { font: inherit; color: inherit; }
 .totals { display: flex; gap: 16px; margin-top: 8px; }
 .totals-row { display: flex; align-items: baseline; gap: 6px; }
 .totals-label { color: var(--muted); font-size: 12px; }
-.totals-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
-.totals-bar { height: 8px; background: #EDEFF3; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.totals-bar { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 8px; }
 .totals-fill { height: 100%; background: var(--accent); }
 
 /* 메모는 이제 늘 화면에 붙어 있다. 비어 있을 때까지 88px 을 차지하면 정작
@@ -230,13 +237,15 @@ button { font: inherit; color: inherit; }
 .tt-line {
   height: var(--tt-hour); border-top: 1px solid var(--line);
   /* 30분 자리의 옅은 눈금. */
-  background-image: linear-gradient(to bottom, transparent calc(50% - 1px), #F1F3F5 calc(50% - 1px) 50%, transparent 50%);
+  background-image: linear-gradient(to bottom, transparent calc(50% - 1px), #E9E1D0 calc(50% - 1px) 50%, transparent 50%);
 }
 .tt-line:last-child { border-bottom: 1px solid var(--line); }
 
+/* overflow 를 열어둔다 - ✓ 가 얇은 블록 밖으로 삐져나와야 하기 때문이다.
+   글자가 새는 것은 안쪽 .tt-main 이 막는다. */
 .tt-seg {
   position: absolute; left: 2px; right: 2px;
-  display: flex; flex-direction: column; overflow: hidden;
+  display: flex; flex-direction: column; overflow: visible;
   border-radius: 6px;
   filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
@@ -247,18 +256,30 @@ button { font: inherit; color: inherit; }
 
 /* 손잡이 사이에 남는 자리. 여기에 ✓ 와 이름이 가로로 들어간다. */
 .tt-main { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; overflow: hidden; }
-/* 세로로 길어진 블록에서 ✓ 자리가 끝까지 늘어나면 색 띠가 하나 더 생긴 것처럼
-   보인다. 높이를 손가락 크기에서 끊는다. */
+/* ✓ 는 블록 높이를 따라가지 않는다. 5분(≈5px)짜리 블록 안에 갇히면 보이지도
+   눌리지도 않으므로, 흐름에서 빼내 늘 같은 크기로 세로 가운데에 둔다. 얇은
+   블록에서는 위아래로 삐져나오는데, 그 편이 안 보이는 것보다 낫다. */
 .tt-check {
-  flex: 0 0 34px; max-height: 40px; border: 0; background: rgba(255,255,255,.5);
-  font-size: 12px; font-weight: 700; cursor: pointer; padding: 0;
-  border-bottom-right-radius: 6px;
+  position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; z-index: 3; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(31,42,34,.28); border-radius: 8px;
+  background: rgba(255,255,255,.88); box-shadow: 0 1px 2px rgba(0,0,0,.14);
+  font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer;
 }
-.tt-seg-done .tt-check { background: rgba(255,255,255,.75); }
+.tt-check-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 고르는 자리에서 바로 과목을 만든다. 목록이 비어서 시작하니, 설정까지
+   들어가야만 만들 수 있으면 아무도 안 만든다. */
+.subject-field { display: flex; flex-direction: column; gap: 6px; }
+.subject-new { display: flex; align-items: center; gap: 6px; }
+.subject-new input[type="color"] { flex: 0 0 40px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.subject-new-name { flex: 1 1 auto; min-width: 0; }
+.subject-new .btn { min-height: 40px; padding: 0 12px; flex: 0 0 auto; }
 .tt-body {
   flex: 1 1 auto; min-width: 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
-  padding: 0 6px; overflow: hidden; text-align: left;
+  padding: 0 6px 0 34px; overflow: hidden; text-align: left;
 }
 .tt-label { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tt-time { font-size: 9px; opacity: .65; white-space: nowrap; }
@@ -278,12 +299,12 @@ button { font: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: center;
 }
 .tt-handle::before {
-  content: ""; height: 2px; width: 26px; border-radius: 1px; background: rgba(31,35,41,.26);
+  content: ""; height: 2px; width: 26px; border-radius: 1px; background: rgba(43,42,35,.28);
 }
 /* 맞닿은 두 블록이 함께 움직이는 경계. 잡으면 양쪽이 같이 바뀌므로 눈금을
    둘로 나눠 구분한다. */
 .tt-handle-shared { flex-basis: 13px; }
-.tt-handle-shared::before { box-shadow: 0 4px 0 rgba(31,35,41,.26), 0 -4px 0 rgba(31,35,41,.26); }
+.tt-handle-shared::before { box-shadow: 0 4px 0 rgba(43,42,35,.28), 0 -4px 0 rgba(43,42,35,.28); }
 /* 잡고 있는 동안에만 또렷해진다. */
 .tt-handle-on { background: rgba(255,255,255,.75); }
 .tt-handle-on::before { background: var(--accent); height: 3px; }
@@ -295,17 +316,18 @@ button { font: inherit; color: inherit; }
    뚫고 나온다(CSS 는 인라인 내용을 블록 배경보다 나중에 그린다). */
 .tt-ghost {
   position: absolute; left: 2px; right: 2px; z-index: 4;
-  background: rgba(76,110,245,.25); border: 1.5px dashed var(--accent);
+  background: var(--accent-weak); border: 1.5px dashed var(--accent);
   border-radius: 6px; pointer-events: none; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
 .tt-ghost-label { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(255,255,255,.9); padding: 0 4px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tt-ghost-sub { font-size: 9px; font-weight: 700; color: #1F2329; background: rgba(255,255,255,.9); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
+.tt-ghost-sub { font-size: 9px; font-weight: 700; color: var(--text); background: rgba(255,255,255,.9); padding: 0 4px; border-radius: 4px; white-space: nowrap; }
 
 /* ---------- 탭과 좌우 넘김 ---------- */
-/* 위쪽(달성률·일정·메모·탭)은 붙박이고 시간표/To-Do 만 굴러간다. 그래서 하루
-   화면은 화면 높이를 통째로 잡고 그 안에서 나눈다. dvh 는 주소창이 접히고
-   펴져도 맞는다 - 옛 브라우저는 앞줄의 vh 로 떨어진다. */
+/* 시간표/To-Do 가 위, 달성률·일정·메모가 아래다. 하루 화면은 화면 높이를
+   통째로 잡고 그 안에서 나눈다 - 그래야 위아래가 제자리에 붙어 있고 가운데만
+   굴러간다. dvh 는 주소창이 접히고 펴져도 맞는다 - 옛 브라우저는 앞줄의 vh 로
+   떨어진다. */
 #screen-day { height: 100vh; height: 100dvh; padding-bottom: 0; overflow: hidden; }
 .day { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 /* 남는 높이는 이 사슬을 따라 .pager 까지 내려간다. 중간에 한 칸이라도 flex 가
@@ -326,6 +348,15 @@ button { font: inherit; color: inherit; }
   touch-action: pan-y; padding-bottom: calc(12px + var(--safe-b));
 }
 .pager-page { min-width: 0; }
+
+/* 아래 칸(달성률·일정·메모). 내용만큼만 차지하되 화면의 절반을 넘기지 않는다 -
+   메모를 길게 늘여도 시간표가 밀려 사라지면 안 된다. 넘치면 여기 안에서 굴러간다. */
+.day-foot {
+  flex: 0 1 auto; min-height: 0; max-height: 38%;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 8px 0 calc(4px + var(--safe-b));
+}
+.day-foot .card:last-child { margin-bottom: 0; }
 .page-in-left { animation: page-in-left .18s ease-out; }
 .page-in-right { animation: page-in-right .18s ease-out; }
 @keyframes page-in-left { from { transform: translateX(26%); opacity: .35; } to { transform: none; opacity: 1; } }
@@ -365,7 +396,7 @@ button { font: inherit; color: inherit; }
 .wd-chip input { width: 20px; height: 20px; }
 
 .paste-source { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
-.paste-preview { margin: 16px 0 0; padding: 10px; background: #F1F3F9; border-radius: var(--radius); font-size: 13px; font-weight: 600; text-align: center; }
+.paste-preview { margin: 16px 0 0; padding: 10px; background: var(--soft); border-radius: var(--radius); font-size: 13px; font-weight: 600; text-align: center; }
 
 .menu-danger { color: var(--danger); }
 

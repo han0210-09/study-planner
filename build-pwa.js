@@ -46,8 +46,8 @@ const manifest = {
   display: "standalone",
   orientation: "portrait",
   // 여는 순간의 스플래시 배경이다. 앱의 --bg 와 맞춰야 앱이 뜰 때 색이 튀지 않는다.
-  background_color: "#FAFAFB",
-  theme_color: "#4C6EF5",
+  background_color: "#F4EEE0",
+  theme_color: "#3E8E5A",
   icons: [
     // 하나로 두 용도를 겸한다. 막대를 안전 영역 안에 그려서 안드로이드가 원형으로
     // 잘라내도 끝이 잘리지 않는다 (test/icon.test.js 가 이걸 검사한다).

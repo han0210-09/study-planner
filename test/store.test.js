@@ -95,39 +95,24 @@ test("sumPlanned / sumDone", () => {
   assert.equal(store.sumDone([]), 0);
 });
 
-test("isStudy: 과목을 고른 블록만 공부다", () => {
-  assert.equal(store.isStudy(B(300, 360)), true);
-  assert.equal(store.isStudy(B(300, 360, { subjectId: null })), false);
-  assert.equal(store.isStudy(B(300, 360, { subjectId: "" })), false);
-  assert.equal(store.isStudy(null), false);
-});
 
-test("sumPlanned / sumDone: 과목 없음 블록은 세지 않는다", () => {
+
+test("sumPlanned / sumDone: 과목이 없어도 똑같이 센다", () => {
   const none = (s, e, extra) => B(s, e, Object.assign({ subjectId: null }, extra));
   const blocks = [B(300, 360, { done: true }), none(400, 520, { done: true }), none(600, 660)];
-  assert.equal(store.sumPlanned(blocks), 60, "과목 있는 60분만 목표에 든다");
-  assert.equal(store.sumDone(blocks), 60, "과목 없음은 완료해도 실제 시간이 아니다");
-  assert.equal(store.sumPlanned([none(300, 480)]), 0);
-  assert.equal(store.sumDone([none(300, 480, { done: true })]), 0);
+  assert.equal(store.sumPlanned(blocks), 60 + 120 + 60);
+  assert.equal(store.sumDone(blocks), 60 + 120);
+  assert.equal(store.sumPlanned([none(300, 480)]), 180);
+  assert.equal(store.sumDone([none(300, 480, { done: true })]), 180);
 });
 
-test("doneRatio: 과목 없음 블록은 분모에도 분자에도 안 든다", () => {
-  const study = (s, e, done) => B(s, e, { done });
+test("doneRatio: 과목 없는 블록도 분모와 분자에 든다", () => {
   const none = (s, e, done) => B(s, e, { subjectId: null, done });
-  // 과목 없음 120분을 끝내도 달성률은 움직이지 않는다.
-  assert.equal(store.doneRatio([study(300, 360, true), none(400, 520, true)]), 100);
-  assert.equal(store.doneRatio([study(300, 360, false), none(400, 520, true)]), 0);
-  // 과목 없음뿐이면 계획이 0이라 나눌 수 없다.
-  assert.equal(store.doneRatio([none(300, 480, true)]), 0);
-  // 과목 없음이 분모를 부풀리지 않는다 - 없었다면 50%가 될 조합이다.
-  assert.equal(store.doneRatio([study(300, 360, true), study(400, 460, false), none(600, 900)]), 50);
-});
-
-test("sumUncounted: 합계에서 빠진 시간을 따로 센다", () => {
-  const none = (s, e) => B(s, e, { subjectId: null });
-  assert.equal(store.sumUncounted([B(300, 360), none(400, 460), none(600, 690)]), 60 + 90);
-  assert.equal(store.sumUncounted([B(300, 360)]), 0);
-  assert.equal(store.sumUncounted([]), 0);
+  // 과목을 안 골랐어도 체크하면 달성률이 오른다. 예전에는 여기가 0% 에 묶여
+  // 있어서, 과목을 안 고른 사람에게는 달성률이 고장난 것처럼 보였다.
+  assert.equal(store.doneRatio([none(300, 480, true)]), 100);
+  assert.equal(store.doneRatio([B(300, 360, { done: true }), none(400, 460, false)]), 50);
+  assert.equal(store.doneRatio([]), 0);
 });
 
 test("sanitizeState: 정상 데이터는 그대로", () => {
@@ -286,12 +271,17 @@ test("sanitizeState: 모양이 깨진 clipboard를 버린다", () => {
   assert.deepEqual(store.sanitizeState({ version: 1, clipboard: goodWeek }).state.clipboard, goodWeek);
 });
 
-test("sanitizeState: 과목 목록이 비면 기본 과목으로 되돌린다", () => {
+test("sanitizeState: 과목이 하나도 없어도 고쳤다고 하지 않는다", () => {
+  // 처음 켠 상태가 빈 목록이다. 이것을 고장으로 세면 열 때마다 띠가 뜬다.
+  const r = store.sanitizeState({ version: 1, settings: { subjects: [] }, days: {}, events: [] });
+  assert.deepEqual(r.state.settings.subjects, []);
+  assert.equal(r.recovered, false);
+});
+
+test("sanitizeState: 모양이 틀린 과목만 걸러내고 고쳤다고 표시한다", () => {
   const r = store.sanitizeState({ version: 1, settings: { subjects: [null] }, days: {}, events: [] });
-  assert.equal(r.state.settings.subjects.length, store.DEFAULT_SUBJECTS.length);
+  assert.deepEqual(r.state.settings.subjects, []);
   assert.equal(r.recovered, true);
-  const r2 = store.sanitizeState({ version: 1, settings: { subjects: [] }, days: {}, events: [] });
-  assert.equal(r2.state.settings.subjects.length, store.DEFAULT_SUBJECTS.length);
 });
 
 test("sanitizeState: todoId를 보존한다", () => {
@@ -345,8 +335,9 @@ test("doneRatio: 계획 대비 실제", () => {
   assert.equal(store.doneRatio([b(300, 360, true), b(400, 520, false)]), 33);
 });
 
-// 이 규칙이 생기기 전에 켜둔 완료가 남아 있으면, 화면에 체크가 없어 끌 방법이 없다.
-test("sanitizeState: 과목 없는 항목의 켜져 있던 완료를 내린다", () => {
+// 과목 없이 체크해 둔 것이 앱을 다시 열 때 소리 없이 풀리면 안 된다.
+// 저장은 이 함수를 거쳐 읽히므로, 여기서 지우면 매번 켤 때마다 지워진다.
+test("sanitizeState: 과목이 없어도 켜둔 완료를 그대로 읽는다", () => {
   const r = store.sanitizeState({
     version: 1,
     settings: { subjects: [{ id: "kor", name: "국어", color: "#fff" }] },
@@ -365,9 +356,9 @@ test("sanitizeState: 과목 없는 항목의 켜져 있던 완료를 내린다",
     events: [],
   });
   const d = r.state.days["2026-08-04"];
-  assert.equal(d.todos[0].done, false, "과목 없는 할 일");
-  assert.equal(d.todos[1].done, true, "과목 있는 할 일은 그대로 둔다");
-  assert.equal(d.blocks[0].done, false, "과목 없는 블록");
-  assert.equal(d.blocks[1].done, true, "과목 있는 블록은 그대로 둔다");
-  assert.equal(r.recovered, false, "정리는 손상이 아니다 - 복구 배너를 띄우지 않는다");
+  assert.equal(d.todos[0].done, true, "과목 없는 할 일도 완료가 남는다");
+  assert.equal(d.todos[1].done, true, "과목 있는 할 일도 그대로다");
+  assert.equal(d.blocks[0].done, true, "과목 없는 블록도 완료가 남는다");
+  assert.equal(d.blocks[1].done, true, "과목 있는 블록도 그대로다");
+  assert.equal(r.recovered, false, "손상이 아니므로 복구 배너를 띄우지 않는다");
 });

@@ -1,21 +1,21 @@
 // 앱 아이콘을 코드로 그려서 PNG 로 낸다. 이 저장소는 의존성이 없으므로
 // 이미지 라이브러리를 쓰지 않고 node:zlib 만으로 PNG 를 직접 인코딩한다.
 //
-// 색은 지어내지 않았다. 배경은 앱의 --accent 이고 막대는 기본 과목 색
-// (국어·영어·수학) 을 그대로 쓴다. 아이콘이 앱의 타임테이블을 축소한 모양이다.
+// 색은 지어내지 않았다. 배경은 앱의 --accent(녹색)이고 막대는 과목 팔레트에서
+// 골랐다. 아이콘이 앱의 타임테이블을 축소한 모양이다.
 
 const zlib = require("node:zlib");
 
 const REF = 512; // 아래 좌표는 모두 512 기준이고, 다른 크기는 비례로 늘린다.
-const BG = [0x4c, 0x6e, 0xf5];
+const BG = [0x3e, 0x8e, 0x5a];
 const BAR_H = 60;
 const GAP = 36;
 const TOP = 130;
 const RADIUS = 18;
 const BARS = [
-  { x0: 112, x1: 400, color: [0xff, 0xe0, 0x8a] },
-  { x0: 112, x1: 292, color: [0xa8, 0xe6, 0xcf] },
-  { x0: 112, x1: 352, color: [0xff, 0xb3, 0xba] },
+  { x0: 112, x1: 400, color: [0xf4, 0xee, 0xe0] },
+  { x0: 112, x1: 292, color: [0xf6, 0xdf, 0xa8] },
+  { x0: 112, x1: 352, color: [0xd7, 0xe9, 0xc4] },
 ];
 
 const CRC_TABLE = (() => {

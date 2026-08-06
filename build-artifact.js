@@ -38,7 +38,7 @@ const ensureMeta = `
     document.head.appendChild(m);
   }
   meta("name", "viewport", "width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover");
-  meta("name", "theme-color", "#4C6EF5");
+  meta("name", "theme-color", "#3E8E5A");
   meta("name", "apple-mobile-web-app-capable", "yes");
   meta("name", "apple-mobile-web-app-status-bar-style", "default");
   if (document.title !== ${JSON.stringify(title)}) document.title = ${JSON.stringify(title)};
