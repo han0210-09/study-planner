@@ -235,7 +235,10 @@ button { font: inherit; color: inherit; }
 .memo { width: 100%; min-height: 46px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
 /* ---------- 타임테이블 (시간이 위에서 아래로 곧게 흐른다) ---------- */
-.tt-wrap { display: flex; user-select: none; }
+/* 위쪽에 6px 을 비워 둔다. 시각 라벨은 제 줄 위에 걸터앉으므로(translateY(-4px))
+   맨 첫 줄인 05:00 은 상자 밖으로 4px 넘어가 격자 위에 떠 있는 것처럼 보였다.
+   두 칸(눈금·격자)을 함께 내려야 줄이 어긋나지 않는다. */
+.tt-wrap { display: flex; user-select: none; padding-top: 6px; }
 /* 시각 눈금은 바탕을 달리해 격자와 갈라 둔다. */
 .tt-labels { flex: 0 0 40px; background: var(--bg); }
 .tt-label-cell {
@@ -263,13 +266,19 @@ button { font: inherit; color: inherit; }
 /* 블록은 늘 제 시간만큼만 차지한다. 최소 높이를 줬더니 5분짜리가 32px 로
    그려져 바로 뒤 블록을 덮어 버렸다 - 이웃을 침범하느니 얇은 편이 낫다.
    대신 한 시간 칸을 180px 로 넓혀, 5분이어도 16px 은 되게 했다. */
+/* 윤곽은 inset box-shadow 로 두른다. border 로 두르면 border-box 계산에서
+   높이를 2px 먹는데, 5분짜리는 그 2px 이 아깝다. inset 은 자리를 안 차지하고
+   border-radius 도 그대로 따라간다.
+   여기에 placeStyle 이 높이에서 1px 을 빼 이웃과 틈을 만든다 - 색이 비슷한 두
+   블록이 맞닿아 있을 때 어디서 끊기는지 보이지 않던 문제를 이 둘이 함께 푼다. */
 .tt-seg {
   position: absolute; left: 2px; right: 2px;
   display: flex; flex-direction: column; overflow: hidden;
   border-radius: 6px;
-  filter: saturate(.75); box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  filter: saturate(.75);
+  box-shadow: inset 0 0 0 1px rgba(43,42,35,.28), 0 1px 2px rgba(0,0,0,.10);
 }
-.tt-seg-done { filter: saturate(1.35); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.tt-seg-done { filter: saturate(1.35); box-shadow: inset 0 0 0 1px rgba(43,42,35,.34), 0 1px 3px rgba(0,0,0,.18); }
 /* 들린 블록. 원래 자리는 흐려지고 그림자가 손가락을 따라간다. */
 .tt-seg-lifted { opacity: .35; }
 .merge-btn { width: 100%; min-height: 44px; margin-bottom: 8px; font-size: 13px; color: var(--accent); border-color: var(--accent); }
@@ -1370,13 +1379,29 @@ body.focus-open { overflow: hidden; }
     return items.map((x) => (x.subjectId || !x.done ? x : { ...x, done: false }));
   }
 
+  // 연결된 쌍은 과목과 내용이 같다. 주인은 할 일이다.
+  //
+  // 아침·저녁으로 나눠 잡은 할 일에서 블록 하나만 과목을 바꾸면, 나머지는 옛
+  // 과목에 남아 같은 일이 시간표에 두 색으로 그려졌다. 어느 쪽이 맞는지 앱
+  // 안에서 알 방법이 없다. 할 일을 기준으로 전부 맞춘다.
+  function alignToTodo(todos, blocks) {
+    const byId = new Map(todos.map((t) => [t.id, t]));
+    return blocks.map((b) => {
+      const t = b.todoId ? byId.get(b.todoId) : null;
+      if (!t) return b;
+      const subjectId = t.subjectId || null;
+      if ((b.subjectId || null) === subjectId && b.text === t.text) return b;
+      return { ...b, subjectId, text: t.text };
+    });
+  }
+
   // 이 파일이 돌려주는 모든 { todos, blocks } 는 여기를 지난다. 규칙을 함수마다
   // 따로 적으면 새로 만드는 함수에서 빠뜨린다.
   //
-  // 순서가 중요하다. 블록을 먼저 정리해야 recompute 가 정리된 값에서 할 일의
-  // 완료를 다시 뽑는다.
+  // 순서가 중요하다. 과목을 먼저 맞춰야 clearDone 이 '과목 없음이 된 블록'까지
+  // 본다. 블록을 다 정리한 뒤라야 recompute 가 정리된 값에서 완료를 다시 뽑는다.
   function pair(todos, blocks) {
-    const next = clearDone(blocks);
+    const next = clearDone(alignToTodo(todos, blocks));
     return { todos: clearDone(recompute(todos, next)), blocks: next };
   }
 
@@ -4313,8 +4338,13 @@ body.focus-open { overflow: hidden; }
     return grid.minutesAt((clientY - r.top) / r.height);
   }
 
+  // 높이에서 1px 을 뺀다. 맞닿은 두 블록은 경계가 정확히 겹쳐서, 과목 색이
+  // 비슷하면 어디서 끊기는지 보이지 않았다. 그만큼 틈이 생긴다.
   function placeStyle(start, end) {
-    return { top: grid.offsetPercent(start) + "%", height: grid.spanPercent(start, end) + "%" };
+    return {
+      top: grid.offsetPercent(start) + "%",
+      height: "calc(" + grid.spanPercent(start, end) + "% - 1px)",
+    };
   }
 
   function blocksOf(dateKey) {
@@ -4662,7 +4692,16 @@ body.focus-open { overflow: hidden; }
         const t = pointToMinutes(ev.clientY, cells) + (edge === "end" ? dt.SLOT : 0);
         const before = blocksOf(dateKey);
         const r = grid.resizeAt(before, block, edge, t);
-        if (!r) return;
+        if (!r) {
+          // 원래 경계로 돌아왔다. resizeAt 은 "바뀔 것이 없다"를 null 로 알린다.
+          // 여기서 그냥 돌아서면 직전에 계산해 둔 next 가 남아, 손을 뗄 때 그
+          // 자리로 저장된다 - 늘렸다가 제자리에 갖다 놔도 안 돌아오던 이유다.
+          next = null;
+          drawGhosts(cells, ghost, []);
+          dim(cells, dimmed, false);
+          dimmed.length = 0;
+          return;
+        }
         next = r;
         dim(cells, dimmed, false);
         dimmed.length = 0;

@@ -396,3 +396,67 @@ test("commitBlock: 같은 할 일에 붙을 때는 자리를 만들지 않는다
   assert.deepEqual(titles(r), ["아침", "국어"]);
   assert.equal(r.blocks.find((b) => b.id === "b3").todoId, "t2");
 });
+
+/* ---------- 연결된 쌍은 과목·내용이 같다 ---------- */
+
+// 아침·저녁으로 나눠 잡은 할 일에서 블록 하나의 과목만 바꾸면, 나머지가 옛
+// 과목에 남아 같은 일이 시간표에 두 색으로 그려졌다.
+test("commitBlock: 한 블록의 과목을 바꾸면 같은 할 일의 나머지도 따라간다", () => {
+  const d = day(
+    [T("t1", { subjectId: "kor", text: "독서 지문" })],
+    [B("b1", 300, 360, { todoId: "t1", subjectId: "kor", text: "독서 지문" }),
+     B("b2", 600, 660, { todoId: "t1", subjectId: "kor", text: "독서 지문" }),
+     B("b3", 800, 860, { subjectId: "kor", text: "남" })]
+  );
+  const edited = { ...d.blocks[0], subjectId: "eng" };
+  const r = link.commitBlock(d, edited, "t1", "독서 지문");
+  assert.equal(r.blocks.find((b) => b.id === "b1").subjectId, "eng");
+  assert.equal(r.blocks.find((b) => b.id === "b2").subjectId, "eng");
+  assert.equal(r.todos[0].subjectId, "eng");
+  // 안 묶인 블록은 건드리지 않는다.
+  assert.equal(r.blocks.find((b) => b.id === "b3").subjectId, "kor");
+});
+
+test("commitBlock: 내용을 바꿔도 같은 할 일의 나머지가 따라간다", () => {
+  const d = day(
+    [T("t1", { text: "옛 이름" })],
+    [B("b1", 300, 360, { todoId: "t1", text: "옛 이름" }),
+     B("b2", 600, 660, { todoId: "t1", text: "옛 이름" })]
+  );
+  const r = link.commitBlock(d, { ...d.blocks[0], text: "새 이름" }, "t1", "새 이름");
+  assert.equal(r.blocks.find((b) => b.id === "b2").text, "새 이름");
+});
+
+test("commitBlock: 과목을 없애면 같은 할 일의 나머지 완료도 함께 내려간다", () => {
+  const d = day(
+    [T("t1", { done: true })],
+    [B("b1", 300, 360, { todoId: "t1", done: true }),
+     B("b2", 600, 660, { todoId: "t1", done: true })]
+  );
+  const r = link.commitBlock(d, { ...d.blocks[0], subjectId: null }, "t1", "t1");
+  assert.equal(r.blocks.find((b) => b.id === "b2").subjectId, null);
+  assert.equal(r.blocks.find((b) => b.id === "b2").done, false);
+  assert.equal(r.todos[0].done, false);
+});
+
+test("commitTodo 로 고쳐도 같은 규칙이다", () => {
+  const d = day(
+    [T("t1", { subjectId: "kor" })],
+    [B("b1", 300, 360, { todoId: "t1" }), B("b2", 600, 660, { todoId: "t1" })]
+  );
+  const r = link.commitTodo(d, { ...d.todos[0], subjectId: "math" },
+    [{ id: "b1", start: 300, end: 360 }, { id: "b2", start: 600, end: 660 }]);
+  assert.deepEqual(r.blocks.map((b) => b.subjectId), ["math", "math"]);
+});
+
+// 할 일에서 풀린 블록은 더 이상 따라가지 않는다.
+test("commitBlock none: 연결을 끊은 블록은 옛 할 일을 안 따라간다", () => {
+  const d = day(
+    [T("t1", { subjectId: "kor" })],
+    [B("b1", 300, 360, { todoId: "t1" }), B("b2", 600, 660, { todoId: "t1" })]
+  );
+  const r = link.commitBlock(d, { ...d.blocks[0], subjectId: "eng" }, "none", "독립");
+  assert.equal(r.blocks.find((b) => b.id === "b1").subjectId, "eng");
+  assert.equal(r.blocks.find((b) => b.id === "b1").todoId, null);
+  assert.equal(r.blocks.find((b) => b.id === "b2").subjectId, "kor");
+});

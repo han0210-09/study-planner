@@ -23,13 +23,29 @@
     return items.map((x) => (x.subjectId || !x.done ? x : { ...x, done: false }));
   }
 
+  // 연결된 쌍은 과목과 내용이 같다. 주인은 할 일이다.
+  //
+  // 아침·저녁으로 나눠 잡은 할 일에서 블록 하나만 과목을 바꾸면, 나머지는 옛
+  // 과목에 남아 같은 일이 시간표에 두 색으로 그려졌다. 어느 쪽이 맞는지 앱
+  // 안에서 알 방법이 없다. 할 일을 기준으로 전부 맞춘다.
+  function alignToTodo(todos, blocks) {
+    const byId = new Map(todos.map((t) => [t.id, t]));
+    return blocks.map((b) => {
+      const t = b.todoId ? byId.get(b.todoId) : null;
+      if (!t) return b;
+      const subjectId = t.subjectId || null;
+      if ((b.subjectId || null) === subjectId && b.text === t.text) return b;
+      return { ...b, subjectId, text: t.text };
+    });
+  }
+
   // 이 파일이 돌려주는 모든 { todos, blocks } 는 여기를 지난다. 규칙을 함수마다
   // 따로 적으면 새로 만드는 함수에서 빠뜨린다.
   //
-  // 순서가 중요하다. 블록을 먼저 정리해야 recompute 가 정리된 값에서 할 일의
-  // 완료를 다시 뽑는다.
+  // 순서가 중요하다. 과목을 먼저 맞춰야 clearDone 이 '과목 없음이 된 블록'까지
+  // 본다. 블록을 다 정리한 뒤라야 recompute 가 정리된 값에서 완료를 다시 뽑는다.
   function pair(todos, blocks) {
-    const next = clearDone(blocks);
+    const next = clearDone(alignToTodo(todos, blocks));
     return { todos: clearDone(recompute(todos, next)), blocks: next };
   }
 
