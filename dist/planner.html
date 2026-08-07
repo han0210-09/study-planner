@@ -139,11 +139,20 @@ button { font: inherit; color: inherit; }
 .menu-item:last-child { border-bottom: 0; }
 
 /* ---------- 하루 화면 ---------- */
-.day-head { display: grid; grid-template-columns: 44px auto 1fr 44px; align-items: center; gap: 6px; margin-bottom: 10px; }
-.day-nav { display: flex; align-items: center; justify-content: center; gap: 2px; }
-.day-date { font-size: 15px; font-weight: 600; white-space: nowrap; }
-.dday { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
-.dday-none { background: var(--track); color: var(--muted); font-weight: 500; }
+/* 달력 격자와 같은 함정이다. 1fr 은 minmax(auto, 1fr) 이라 날짜 칸이 제 글자보다
+   좁아지지 못하고, 넘친 만큼 마지막 칸(⋯)이 화면 밖으로 밀려 잘렸다. */
+.day-head { display: grid; grid-template-columns: 44px auto minmax(0, 1fr) 44px; align-items: center; gap: 4px; margin-bottom: 10px; }
+.day-nav { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
+/* 하루 넘김 화살표만 좁힌다. 세로 44px 은 그대로라 누르기 어렵지 않고, 좌우로
+   미는 손짓이 같은 일을 하므로 이 단추가 유일한 길도 아니다. 그 16px 이
+   날짜가 온전히 보이느냐 '2026. 8…' 로 잘리느냐를 가른다. */
+.day-nav .icon-btn { min-width: 34px; }
+.day-date { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* nowrap 이 없으면 좁은 화면에서 '일정 없음' 이 글자마다 줄바꿈되어, 알약이
+   세로로 길쭉해진다. 'D-39' 처럼 짧을 때는 안 보이던 문제다. */
+.dday { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+/* 다가오는 일정이 없을 때. 자리만 지키고 아무것도 안 그린다(day.js 참고). */
+.dday-none { width: 0; }
 
 /* 하루 화면에서는 위쪽 칸들이 늘 붙어 있다. 여백 한 겹이 그대로 시간표가 볼
    자리를 깎으므로 넉넉하지 않게 잡는다. */
@@ -242,10 +251,9 @@ button { font: inherit; color: inherit; }
 .memo { width: 100%; min-height: 46px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; resize: vertical; }
 
 /* ---------- 타임테이블 (시간이 위에서 아래로 곧게 흐른다) ---------- */
-/* 위쪽에 6px 을 비워 둔다. 시각 라벨은 제 줄 위에 걸터앉으므로(translateY(-4px))
-   맨 첫 줄인 05:00 은 상자 밖으로 4px 넘어가 격자 위에 떠 있는 것처럼 보였다.
-   두 칸(눈금·격자)을 함께 내려야 줄이 어긋나지 않는다. */
-.tt-wrap { display: flex; user-select: none; padding-top: 6px; }
+/* 맨 첫 줄의 시각(05:00)은 아예 안 그린다(timetable.js 의 render 참고). 그래서
+   위로 넘칠 글자가 없고, 여백을 따로 둘 일도 없다. */
+.tt-wrap { display: flex; user-select: none; }
 /* 시각 눈금은 바탕을 달리해 격자와 갈라 둔다. */
 .tt-labels { flex: 0 0 40px; background: var(--bg); }
 .tt-label-cell {
@@ -5502,7 +5510,12 @@ body.focus-open { overflow: hidden; }
     const labels = [];
     const lines = [];
     for (let r = 0; r < grid.ROWS; r++) {
-      labels.push(ui.el("div", { class: "tt-label-cell", text: dt.minutesToLabel(dt.DAY_START + r * 60) }));
+      // 맨 첫 줄(05:00)은 글자를 비운다. 시각은 제 줄 위에 걸터앉는데 첫 줄에는
+      // 걸터앉을 위가 없어, 이것 하나만 다른 자리에 놓인다. 억지로 자리를
+      // 만드느니 비우는 편이 낫다 - 격자가 어디서 시작하는지는 바로 아래
+      // 06:00 이 말해 주고, 칸 자체는 남으므로 줄 높이도 그대로다.
+      labels.push(ui.el("div", { class: "tt-label-cell",
+        text: r === 0 ? "" : dt.minutesToLabel(dt.DAY_START + r * 60) }));
       lines.push(ui.el("div", { class: "tt-line" }));
     }
 
@@ -5567,10 +5580,14 @@ body.focus-open { overflow: hidden; }
   // 서랍이 닫히면 메모를 쓰다 말고 매번 다시 열어야 한다.
   let sheetOpen = false;
 
+  // 다가오는 일정이 없으면 알약을 안 그린다. '일정 없음' 다섯 글자가 헤더에서
+  // 가장 넓은 자리를 먹으면서 알려주는 것은 가장 적었다 - 그 폭 때문에 날짜가
+  // '2026. 8…' 로 잘렸다. 자리는 남겨 둔다(빈 span). 없애 버리면 ⋯ 가 한 칸
+  // 당겨져 격자가 어긋난다.
   function ddayChip(dateKey) {
     const state = SP.app.state();
     const result = eventsApi.dday(state.events, dateKey);
-    if (!result) return ui.el("span", { class: "dday dday-none", text: "일정 없음" });
+    if (!result) return ui.el("span", { class: "dday-none" });
     return ui.el("span", { class: "dday", title: result.event.title, text: eventsApi.formatDday(result.days) });
   }
 

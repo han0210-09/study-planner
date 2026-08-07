@@ -20,10 +20,14 @@
   // 서랍이 닫히면 메모를 쓰다 말고 매번 다시 열어야 한다.
   let sheetOpen = false;
 
+  // 다가오는 일정이 없으면 알약을 안 그린다. '일정 없음' 다섯 글자가 헤더에서
+  // 가장 넓은 자리를 먹으면서 알려주는 것은 가장 적었다 - 그 폭 때문에 날짜가
+  // '2026. 8…' 로 잘렸다. 자리는 남겨 둔다(빈 span). 없애 버리면 ⋯ 가 한 칸
+  // 당겨져 격자가 어긋난다.
   function ddayChip(dateKey) {
     const state = SP.app.state();
     const result = eventsApi.dday(state.events, dateKey);
-    if (!result) return ui.el("span", { class: "dday dday-none", text: "일정 없음" });
+    if (!result) return ui.el("span", { class: "dday-none" });
     return ui.el("span", { class: "dday", title: result.event.title, text: eventsApi.formatDday(result.days) });
   }
 
